@@ -467,6 +467,7 @@ void ACEStepVST3AudioProcessor::requestGeneration()
     state_.generationTimeSignature = {};
     state_.generationLoopBars = 0;
     state_.generationLoopDurationSeconds = 0.0;
+    state_.generationLoopAntiClickFades = false;
 
     juce::String timingError;
     if (state_.loopBars > 0 && !state_.syncToHostBpm)
@@ -506,6 +507,7 @@ void ACEStepVST3AudioProcessor::requestGeneration()
                 {
                     state_.generationLoopBars = state_.loopBars;
                     state_.generationLoopDurationSeconds = seconds;
+                    state_.generationLoopAntiClickFades = state_.loopAntiClickFades;
                 }
             }
         }
@@ -732,13 +734,14 @@ void ACEStepVST3AudioProcessor::schedulePreviewDownload(int slotIndex)
     const auto& take = state_.resultTakes[static_cast<size_t>(slotIndex)];
     const auto loopSeconds = take.loopDurationSeconds;
     const auto loopBars = take.loopBars;
+    const auto antiClickFades = take.loopAntiClickFades;
     backendThreadPool_.addJob(std::function<juce::ThreadPoolJob::JobStatus()>(
-        [this, baseUrl, remoteFileUrl, slotIndex, loopSeconds, loopBars]() {
+        [this, baseUrl, remoteFileUrl, slotIndex, loopSeconds, loopBars, antiClickFades]() {
             BackendTaskResult taskResult;
             taskResult.kind = BackendTaskKind::downloadPreview;
             taskResult.previewDownload =
                 backendClient_.downloadPreviewFile(baseUrl, remoteFileUrl, slotIndex,
-                                                   loopSeconds, loopBars);
+                                                   loopSeconds, loopBars, antiClickFades);
             const juce::ScopedLock lock(backendTaskLock_);
             completedBackendTask_ = std::move(taskResult);
             backendTaskRunning_.store(false);
@@ -960,6 +963,7 @@ void ACEStepVST3AudioProcessor::applyCompletedTask(const BackendTaskResult& task
                                            : state_.durationSeconds;
                 take.loopBars = state_.generationLoopBars;
                 take.loopDurationSeconds = state_.generationLoopDurationSeconds;
+                take.loopAntiClickFades = state_.generationLoopAntiClickFades;
                 if (take.loopBars > 0)
                     take.slotLabel += " // " + juce::String(take.loopBars) + " bars @ "
                                       + juce::String(state_.generationBpm) + " BPM";

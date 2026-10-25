@@ -51,6 +51,8 @@ SynthPanelComponent::SynthPanelComponent()
     loraStatusLabel_.setText("No LoRA loaded.", juce::dontSendNotification);
     durationLabel_.setText("Length", juce::dontSendNotification);
     bpmStatusLabel_.setText("DAW // tempo not detected", juce::dontSendNotification);
+    antiClickToggle_.setTooltip("Optional 5 ms boundary fades on exported bar loops. "
+                                "Off preserves transients but may click at a hard loop point.");
     bpmStatusLabel_.setColour(juce::Label::textColourId, v2::kAccentMint);
     durationBox_.setTooltip("Choose seconds, or a bar length synced to Ableton. "
                             "Loop exports have exact length, but may need an Ableton crossfade.");
@@ -82,6 +84,7 @@ SynthPanelComponent::SynthPanelComponent()
                             static_cast<juce::Component*>(&seedEditor_),
                             static_cast<juce::Component*>(&durationBox_),
                             static_cast<juce::Component*>(&bpmSyncToggle_),
+                            static_cast<juce::Component*>(&antiClickToggle_),
                             static_cast<juce::Component*>(&modelBox_),
                             static_cast<juce::Component*>(&qualityBox_),
                             static_cast<juce::Component*>(&loraAdapterBox_),
@@ -135,6 +138,8 @@ void SynthPanelComponent::resized()
     left.removeFromTop(12);
     bpmSyncToggle_.setBounds(left.removeFromTop(28));
     bpmStatusLabel_.setBounds(left.removeFromTop(22));
+    left.removeFromTop(6);
+    antiClickToggle_.setBounds(left.removeFromTop(26));
 
     auto topParamLabels = right.removeFromTop(labelHeight);
     durationLabel_.setBounds(topParamLabels.removeFromLeft(right.getWidth() / 2 - 8));
@@ -208,6 +213,7 @@ juce::TextEditor& SynthPanelComponent::seedEditor() noexcept { return seedEditor
 juce::ComboBox& SynthPanelComponent::modeBox() noexcept { return modeBox_; }
 juce::ComboBox& SynthPanelComponent::durationBox() noexcept { return durationBox_; }
 juce::ToggleButton& SynthPanelComponent::bpmSyncToggle() noexcept { return bpmSyncToggle_; }
+juce::ToggleButton& SynthPanelComponent::antiClickToggle() noexcept { return antiClickToggle_; }
 juce::Label& SynthPanelComponent::bpmStatusLabel() noexcept { return bpmStatusLabel_; }
 juce::ComboBox& SynthPanelComponent::modelBox() noexcept { return modelBox_; }
 juce::ComboBox& SynthPanelComponent::qualityBox() noexcept { return qualityBox_; }

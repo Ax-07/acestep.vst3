@@ -39,15 +39,22 @@ are sent to ACE-Step's Python `/release_task` API as `bpm`,
 - Duration calculation: `bars * numerator * (4 / denominator) * 60 / BPM`.
   For example at **128 BPM in 4/4**, 4 / 8 / 16 / 32 bars mean
   **7.5 / 15 / 30 / 60 seconds**.
-- ACE-Step requires **at least 10 seconds** of generation. For short
-  loops, the plugin requests 10 seconds, then writes a separate WAV
-  matching the selected number of bars exactly (at the source sample rate).
-- In bar mode, the original full-length file **and** the exact-length
+- **Seconds mode is unchanged:** choosing 10 / 30 / 60 / 120 seconds
+  requests exactly that duration and does not crop or alter the downloaded WAV.
+- **Bars mode renders a longer source:** at least 30 seconds, and ideally
+  enough to exclude four bars before and after the chosen passage (up to
+  ACE-Step's 600-second API limit). The plugin extracts a bar-aligned section
+  near the middle and exports a separate WAV of the requested duration.
+  This reduces the chance of capturing the model's intro or natural fade-out.
+  Longer source renders also take longer on the GPU.
+- In bars mode, the untouched full-length original and the exact-duration
   `*-4bars.wav`, `*-8bars.wav`, etc. are kept in the exports folder.
-  Preview and **Drag WAV to Track** use the bar-length file.
-- A small 5 ms fade is applied at the start and end of a bar-length export
-  to reduce clicks. **The model is not guaranteed to compose a seamless
-  musical loop**: you may still need Warp, crossfades, or editing in Ableton.
+  Preview and **Drag WAV to Track** use the bar-length derivative.
+- **Anti-click fades (5 ms)** is optional and **off by default** for bars,
+  preserving electronic transients. Enable it only if you hear a click at
+  the loop boundary. It does not affect seconds mode.
+- **The model still cannot guarantee a seamlessly repeating phrase.**
+  If needed, adjust its entry point, transients or crossfades in Ableton.
 - If the host does not provide tempo, start Ableton's transport. ACE-Step
   supports only BPM values in the 30-300 range. Unsupported time signatures
   still determine the WAV length but are not supplied as metadata to ACE-Step.

@@ -136,6 +136,7 @@ void ACEStepVST3AudioProcessorEditor::configureSelectors()
         persistTextFields();
     };
     synthPanel_.bpmSyncToggle().onClick = [this] { persistTextFields(); };
+    synthPanel_.antiClickToggle().onClick = [this] { persistTextFields(); };
     modelBox.onChange = [this] { persistTextFields(); };
     qualityBox.onChange = [this] { persistTextFields(); };
     loraAdapterBox.onChange = [this] { persistTextFields(); };
@@ -235,6 +236,8 @@ void ACEStepVST3AudioProcessorEditor::syncFromProcessor()
         state.loopBars > 0 ? 1000 + state.loopBars : state.durationSeconds,
         juce::dontSendNotification);
     synthPanel_.bpmSyncToggle().setToggleState(state.syncToHostBpm, juce::dontSendNotification);
+    synthPanel_.antiClickToggle().setToggleState(state.loopAntiClickFades,
+                                                 juce::dontSendNotification);
     synthPanel_.modelBox().setSelectedId(static_cast<int>(state.modelPreset) + 1,
                                          juce::dontSendNotification);
     synthPanel_.qualityBox().setSelectedId(static_cast<int>(state.qualityMode) + 1,
@@ -303,6 +306,7 @@ void ACEStepVST3AudioProcessorEditor::persistTextFields()
         state.durationSeconds = durationId == 0 ? kDefaultDurationSeconds : durationId;
     }
     state.syncToHostBpm = synthPanel_.bpmSyncToggle().getToggleState();
+    state.loopAntiClickFades = synthPanel_.antiClickToggle().getToggleState();
     state.seed = seedEditor.getText().getIntValue();
     state.audioCoverStrength = coverStrengthSlider.getValue();
     state.loraScale = loraScaleSlider.getValue();
@@ -445,6 +449,8 @@ void ACEStepVST3AudioProcessorEditor::refreshStatusViews()
     resultDeck_.toggleCompareButton().setButtonText(state.compareOnPrimary ? "Toggle to B"
                                                                            : "Toggle to A");
     resultDeck_.dragToDawButton().setEnabled(!localPath.isEmpty());
+
+    synthPanel_.antiClickToggle().setEnabled(state.loopBars > 0);
 
     const auto hostTiming = processor_.getHostTiming();
     synthPanel_.bpmStatusLabel().setText(

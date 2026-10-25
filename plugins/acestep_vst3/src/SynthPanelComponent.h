@@ -23,6 +23,7 @@ public:
     juce::ComboBox& modeBox() noexcept;
     juce::ComboBox& durationBox() noexcept;
     juce::ToggleButton& bpmSyncToggle() noexcept;
+    juce::ToggleButton& antiClickToggle() noexcept;
     juce::Label& bpmStatusLabel() noexcept;
     juce::ComboBox& modelBox() noexcept;
     juce::ComboBox& qualityBox() noexcept;
@@ -67,6 +68,7 @@ private:
     juce::ComboBox modeBox_;
     juce::ComboBox durationBox_;
     juce::ToggleButton bpmSyncToggle_ {"Sync BPM to DAW"};
+    juce::ToggleButton antiClickToggle_ {"Anti-click fades (5 ms)"};
     juce::ComboBox modelBox_;
     juce::ComboBox qualityBox_;
     juce::ComboBox loraAdapterBox_;

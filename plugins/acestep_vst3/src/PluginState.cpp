@@ -52,6 +52,7 @@ std::unique_ptr<juce::XmlElement> createStateXml(const PluginState& state)
     xml->setAttribute("durationSeconds", state.durationSeconds);
     xml->setAttribute("loopBars", state.loopBars);
     xml->setAttribute("syncToHostBpm", state.syncToHostBpm);
+    xml->setAttribute("loopAntiClickFades", state.loopAntiClickFades);
     xml->setAttribute("seed", state.seed);
     xml->setAttribute("audioCoverStrength", state.audioCoverStrength);
     xml->setAttribute("modelPreset", toString(state.modelPreset));
@@ -99,6 +100,8 @@ std::unique_ptr<juce::XmlElement> createStateXml(const PluginState& state)
         xml->setAttribute("resultTakeLoopBars" + juce::String(static_cast<int>(index)), take.loopBars);
         xml->setAttribute("resultTakeLoopSeconds" + juce::String(static_cast<int>(index)),
                           take.loopDurationSeconds);
+        xml->setAttribute("resultTakeAntiClick" + juce::String(static_cast<int>(index)),
+                          take.loopAntiClickFades);
         xml->setAttribute("resultTakeModelPreset" + juce::String(static_cast<int>(index)),
                           toString(take.modelPreset));
         xml->setAttribute("resultTakeQualityMode" + juce::String(static_cast<int>(index)),
@@ -143,6 +146,7 @@ std::optional<PluginState> parseStateXml(const juce::XmlElement& xml)
     state.loopBars = storedBars == 4 || storedBars == 8 || storedBars == 16 || storedBars == 32
                          ? storedBars : 0;
     state.syncToHostBpm = xml.getBoolAttribute("syncToHostBpm", false);
+    state.loopAntiClickFades = xml.getBoolAttribute("loopAntiClickFades", false);
     state.seed = xml.getIntAttribute("seed", kDefaultSeed);
     state.audioCoverStrength = xml.getDoubleAttribute("audioCoverStrength", 0.6);
     state.modelPreset = modelPresetFromString(xml.getStringAttribute("modelPreset"));
@@ -201,6 +205,8 @@ std::optional<PluginState> parseStateXml(const juce::XmlElement& xml)
         take.loopBars = xml.getIntAttribute("resultTakeLoopBars" + juce::String(static_cast<int>(index)), 0);
         take.loopDurationSeconds = xml.getDoubleAttribute(
             "resultTakeLoopSeconds" + juce::String(static_cast<int>(index)), 0.0);
+        take.loopAntiClickFades =
+            xml.getBoolAttribute("resultTakeAntiClick" + juce::String(static_cast<int>(index)), false);
         take.modelPreset = modelPresetFromString(
             xml.getStringAttribute("resultTakeModelPreset" + juce::String(static_cast<int>(index))));
         take.qualityMode = qualityModeFromString(

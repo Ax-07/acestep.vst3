@@ -75,7 +75,8 @@ public:
                                                                   const juce::String& remoteFileUrl,
                                                                   int slotIndex,
                                                                   double loopDurationSeconds = 0.0,
-                                                                  int loopBars = 0) const;
+                                                                  int loopBars = 0,
+                                                                  bool antiClickFades = false) const;
     [[nodiscard]] PluginLoRAStatusResult getLoRAStatus(const juce::String& baseUrl) const;
     [[nodiscard]] PluginLoRAOperationResult loadLoRA(const juce::String& baseUrl,
                                                      const juce::String& loraPath) const;

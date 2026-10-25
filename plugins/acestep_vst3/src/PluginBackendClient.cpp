@@ -183,14 +183,16 @@ juce::String chooseFileExtension(const juce::String& remoteFileUrl)
     return extension;
 }
 
-// Export a bar-length WAV without discarding the untouched generation. ACE-Step's
-// minimum request is 10s, but four bars of house/electro may be shorter.
+// Extract a bar-aligned passage from the interior of a longer AI render.
+// Keep the untouched original for further editing in the DAW.
 bool writeBarLengthWav(const juce::File& sourceFile,
                        const juce::File& loopFile,
                        double durationSeconds,
+                       int loopBars,
+                       bool antiClickFades,
                        juce::String& errorMessage)
 {
-    if (!std::isfinite(durationSeconds) || durationSeconds <= 0.0)
+    if (!std::isfinite(durationSeconds) || durationSeconds <= 0.0 || loopBars <= 0)
     {
         errorMessage = "Invalid target loop length.";
         return false;
@@ -202,6 +204,15 @@ bool writeBarLengthWav(const juce::File& sourceFile,
     if (reader == nullptr || reader->sampleRate <= 0.0 || reader->numChannels == 0)
     {
         errorMessage = "Could not read the original audio for loop export.";
+        return false;
+    }
+
+    const auto totalSamples =
+        static_cast<juce::int64>(std::llround(durationSeconds * reader->sampleRate));
+    if (reader->lengthInSamples + static_cast<juce::int64>(reader->sampleRate * 0.01)
+        < totalSamples)
+    {
+        errorMessage = "ACE-Step returned audio shorter than the requested bar loop.";
         return false;
     }
 
@@ -222,8 +233,19 @@ bool writeBarLengthWav(const juce::File& sourceFile,
     }
     output.release();  // The writer now owns and closes the output stream.
 
-    const auto totalSamples =
-        static_cast<juce::int64>(std::llround(durationSeconds * reader->sampleRate));
+    const auto secondsPerBar = durationSeconds / loopBars;
+    const auto sourceSeconds = reader->lengthInSamples / reader->sampleRate;
+    const auto fullBarsAvailable =
+        static_cast<juce::int64>(std::floor(sourceSeconds / secondsPerBar + 1.0e-6));
+    const auto startBar = juce::jmax<juce::int64>(
+        0, (fullBarsAvailable - static_cast<juce::int64>(loopBars)) / 2);
+    const auto maxStartSample =
+        juce::jmax<juce::int64>(0, reader->lengthInSamples - totalSamples);
+    const auto startSample = juce::jmin<juce::int64>(
+        maxStartSample,
+        static_cast<juce::int64>(
+            std::llround(startBar * secondsPerBar * reader->sampleRate)));
+
     const auto fadeSamples = juce::jmax<juce::int64>(
         1, static_cast<juce::int64>(std::llround(reader->sampleRate * 0.005)));
     constexpr int kChunkSamples = 4096;
@@ -234,25 +256,28 @@ bool writeBarLengthWav(const juce::File& sourceFile,
         const auto chunk = static_cast<int>(juce::jmin<juce::int64>(
             kChunkSamples, totalSamples - offset));
         samples.clear();
-        if (!reader->read(&samples, 0, chunk, offset, true, true))
+        if (!reader->read(&samples, 0, chunk, startSample + offset, true, true))
         {
             errorMessage = "Could not read the generated WAV for loop export.";
             return false;
         }
 
-        // Small boundary fades reduce clicks; they do not guarantee a musically
-        // seamless loop, which may still need editing/crossfades in Ableton.
-        for (int sample = 0; sample < chunk; ++sample)
+        // No fades by default: keep drum attacks intact. The user may
+        // explicitly opt into 5 ms boundary fades to suppress clicks.
+        if (antiClickFades)
         {
-            const auto absoluteSample = offset + sample;
-            const auto fadeIn = static_cast<float>(juce::jmin<juce::int64>(
-                absoluteSample, fadeSamples)) / static_cast<float>(fadeSamples);
-            const auto fadeOut = static_cast<float>(juce::jmin<juce::int64>(
-                totalSamples - absoluteSample - 1, fadeSamples))
-                / static_cast<float>(fadeSamples);
-            const auto gain = juce::jmin(fadeIn, fadeOut);
-            for (int channel = 0; channel < samples.getNumChannels(); ++channel)
-                samples.setSample(channel, sample, samples.getSample(channel, sample) * gain);
+            for (int sample = 0; sample < chunk; ++sample)
+            {
+                const auto absoluteSample = offset + sample;
+                const auto fadeIn = static_cast<float>(juce::jmin<juce::int64>(
+                    absoluteSample, fadeSamples)) / static_cast<float>(fadeSamples);
+                const auto fadeOut = static_cast<float>(juce::jmin<juce::int64>(
+                    totalSamples - absoluteSample - 1, fadeSamples))
+                    / static_cast<float>(fadeSamples);
+                const auto gain = juce::jmin(fadeIn, fadeOut);
+                for (int channel = 0; channel < samples.getNumChannels(); ++channel)
+                    samples.setSample(channel, sample, samples.getSample(channel, sample) * gain);
+            }
         }
 
         if (!writer->writeFromAudioSampleBuffer(samples, 0, chunk))
@@ -346,14 +371,28 @@ PluginGenerationStartResult PluginBackendClient::startGeneration(const PluginSta
     PluginGenerationStartResult result;
 
     juce::DynamicObject::Ptr payload = new juce::DynamicObject();
-    payload->setProperty("prompt", modeNeedsPrompt(state.workflowMode) ? state.prompt : juce::String());
+    auto prompt = modeNeedsPrompt(state.workflowMode) ? state.prompt : juce::String();
+    if (state.generationLoopBars > 0 && prompt.isNotEmpty())
+    {
+        prompt += ", continuous steady groove throughout, no intro, no outro, "
+                  "no ending, no breakdown, no fade-out";
+    }
+    payload->setProperty("prompt", prompt);
     payload->setProperty("lyrics", state.lyrics);
     payload->setProperty("task_type",
                          state.workflowMode == WorkflowMode::coverRemix ? "cover" : "text2music");
-    payload->setProperty("audio_duration",
-                         state.generationLoopDurationSeconds > 0.0
-                             ? juce::jmax(10.0, state.generationLoopDurationSeconds)
-                             : static_cast<double>(state.durationSeconds));
+    // In bar mode render extra musical context: at least 30 seconds, with
+    // four spare bars before and after the selected passage. Seconds mode
+    // remains unchanged. ACE-Step accepts up to 600 seconds.
+    auto renderSeconds = static_cast<double>(state.durationSeconds);
+    if (state.generationLoopBars > 0 && state.generationLoopDurationSeconds > 0.0)
+    {
+        const auto secondsPerBar =
+            state.generationLoopDurationSeconds / state.generationLoopBars;
+        renderSeconds = juce::jmin(
+            600.0, juce::jmax(30.0, state.generationLoopDurationSeconds + 8.0 * secondsPerBar));
+    }
+    payload->setProperty("audio_duration", renderSeconds);
     if (state.generationBpm > 0)
         payload->setProperty("bpm", state.generationBpm);
     if (state.generationTimeSignature.isNotEmpty())
@@ -532,7 +571,8 @@ PluginPreviewDownloadResult PluginBackendClient::downloadPreviewFile(const juce:
                                                                      const juce::String& remoteFileUrl,
                                                                      int slotIndex,
                                                                      double loopDurationSeconds,
-                                                                     int loopBars) const
+                                                                     int loopBars,
+                                                                     bool antiClickFades) const
 {
     PluginPreviewDownloadResult result;
     result.slotIndex = slotIndex;
@@ -600,7 +640,8 @@ PluginPreviewDownloadResult PluginBackendClient::downloadPreviewFile(const juce:
         const auto loopFile = exportsDirectory.getNonexistentChildFile(
             filePrefix + "-" + juce::String(loopBars) + "bars", ".wav", false);
         juce::String loopError;
-        if (!writeBarLengthWav(previewFile, loopFile, loopDurationSeconds, loopError))
+        if (!writeBarLengthWav(previewFile, loopFile, loopDurationSeconds,
+                               loopBars, antiClickFades, loopError))
         {
             result.errorMessage = loopError + " Original saved at: "
                                   + previewFile.getFullPathName();
