@@ -90,6 +90,14 @@ std::unique_ptr<juce::XmlElement> createStateXml(const PluginState& state)
                           take.remoteFileUrl);
         xml->setAttribute("resultTakeLocalPath" + juce::String(static_cast<int>(index)),
                           take.localFilePath);
+        xml->setAttribute("resultTakeOriginalPath" + juce::String(static_cast<int>(index)),
+                          take.originalFilePath);
+        xml->setAttribute("resultTakeLoopStart" + juce::String(static_cast<int>(index)),
+                          take.loopStartSeconds);
+        xml->setAttribute("resultTakeLoopEnd" + juce::String(static_cast<int>(index)),
+                          take.loopEndSeconds);
+        xml->setAttribute("resultTakeLoopBpm" + juce::String(static_cast<int>(index)),
+                          take.loopBpm);
         xml->setAttribute("resultTakeStatusText" + juce::String(static_cast<int>(index)),
                           take.statusText);
         xml->setAttribute("resultTakeCompareGroup" + juce::String(static_cast<int>(index)),
@@ -192,6 +200,14 @@ std::optional<PluginState> parseStateXml(const juce::XmlElement& xml)
             xml.getStringAttribute("resultTakeRemoteUrl" + juce::String(static_cast<int>(index)));
         take.localFilePath =
             xml.getStringAttribute("resultTakeLocalPath" + juce::String(static_cast<int>(index)));
+        take.originalFilePath =
+            xml.getStringAttribute("resultTakeOriginalPath" + juce::String(static_cast<int>(index)));
+        take.loopStartSeconds = xml.getDoubleAttribute(
+            "resultTakeLoopStart" + juce::String(static_cast<int>(index)), 0.0);
+        take.loopEndSeconds = xml.getDoubleAttribute(
+            "resultTakeLoopEnd" + juce::String(static_cast<int>(index)), 0.0);
+        take.loopBpm = xml.getIntAttribute(
+            "resultTakeLoopBpm" + juce::String(static_cast<int>(index)), 0);
         take.statusText =
             xml.getStringAttribute("resultTakeStatusText" + juce::String(static_cast<int>(index)));
         take.compareGroup = xml.getStringAttribute("resultTakeCompareGroup"

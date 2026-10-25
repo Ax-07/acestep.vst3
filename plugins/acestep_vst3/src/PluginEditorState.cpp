@@ -480,6 +480,20 @@ void ACEStepVST3AudioProcessorEditor::refreshStatusViews()
     }
     previewDeck_.setPreviewSummary(previewText);
 
+    // Refresh only when the selected result/files change. AudioThumbnail
+    // builds its waveform asynchronously and never touches the audio thread.
+    const auto& debugTake = state.resultTakes[static_cast<size_t>(state.selectedResultSlot)];
+    if (debugTake.localFilePath.isNotEmpty())
+        previewDeck_.setWaveformFiles(debugTake.originalFilePath,
+                                      debugTake.localFilePath,
+                                      debugTake.loopStartSeconds,
+                                      debugTake.loopEndSeconds,
+                                      debugTake.loopBpm,
+                                      debugTake.loopBars);
+    else
+        previewDeck_.setWaveformFiles(state.previewFilePath, state.previewFilePath,
+                                      0.0, 0.0, 0, 0);
+
     auto exportText = state.lastExportPath.isEmpty() ? "No session export written yet."
                                                      : "EXPORTED // " + state.lastExportPath;
     compositionLane_.setExportStatus(exportText);

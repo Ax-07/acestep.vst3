@@ -50,6 +50,19 @@ are sent to ACE-Step's Python `/release_task` API as `bpm`,
 - In bars mode, the untouched full-length original and the exact-duration
   `*-4bars.wav`, `*-8bars.wav`, etc. are kept in the exports folder.
   Preview and **Drag WAV to Track** use the bar-length derivative.
+- **Preview / Waveform Debug** (scroll to the bottom of the editor) renders
+  real audio waveforms instead of a decorative placeholder: the full ACE-Step
+  render on top, the exported bar loop directly underneath its exact source
+  interval on the same time ruler, plus a zoomable full-width loop detail.
+  The highlighted bounds and start/end seconds are recorded from the actual
+  sample offsets used to export the file. Hover over the detail to read its
+  loop/source position; zoom 1x-16x and move with the horizontal slider.
+  The detail overlays the corresponding source waveform in blue and the
+  exported loop in mint, so differences around the cuts are easier to inspect.
+  Beat guides appear when the generation BPM was captured. This is a visual
+  diagnostic; it does **not** move, stretch, quantize, or process the audio.
+  Older `*-4bars.wav` files with a matching original beside them can also
+  display an inferred crop range, clearly labelled as inferred.
 - **Anti-click fades (5 ms)** is optional and **off by default** for bars,
   preserving electronic transients. Enable it only if you hear a click at
   the loop boundary. It does not affect seconds mode.

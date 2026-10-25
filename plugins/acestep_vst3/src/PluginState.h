@@ -16,6 +16,10 @@ struct PluginResultTake final
     juce::String slotLabel;
     juce::String remoteFileUrl;
     juce::String localFilePath;
+    juce::String originalFilePath;
+    double loopStartSeconds = 0.0; // Exact selected range in the original WAV.
+    double loopEndSeconds = 0.0;
+    int loopBpm = 0;
     juce::String statusText;
     juce::String compareGroup;
     int seed = kDefaultSeed;

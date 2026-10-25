@@ -190,6 +190,8 @@ bool writeBarLengthWav(const juce::File& sourceFile,
                        double durationSeconds,
                        int loopBars,
                        bool antiClickFades,
+                       double& selectedStartSeconds,
+                       double& selectedEndSeconds,
                        juce::String& errorMessage)
 {
     if (!std::isfinite(durationSeconds) || durationSeconds <= 0.0 || loopBars <= 0)
@@ -288,6 +290,8 @@ bool writeBarLengthWav(const juce::File& sourceFile,
     }
 
     writer.reset();  // Finalise WAV headers before Ableton reads the file.
+    selectedStartSeconds = startSample / reader->sampleRate;
+    selectedEndSeconds = (startSample + totalSamples) / reader->sampleRate;
     return true;
 }
 
@@ -633,6 +637,8 @@ PluginPreviewDownloadResult PluginBackendClient::downloadPreviewFile(const juce:
         }
     }
 
+    result.originalFilePath = previewFile.getFullPathName();
+
     // The original remains available for further production/editing. The
     // shortened, bar-exact derivative is the one previewed and dragged to Live.
     if (loopBars > 0 && loopDurationSeconds > 0.0)
@@ -641,7 +647,8 @@ PluginPreviewDownloadResult PluginBackendClient::downloadPreviewFile(const juce:
             filePrefix + "-" + juce::String(loopBars) + "bars", ".wav", false);
         juce::String loopError;
         if (!writeBarLengthWav(previewFile, loopFile, loopDurationSeconds,
-                               loopBars, antiClickFades, loopError))
+                               loopBars, antiClickFades, result.loopStartSeconds,
+                               result.loopEndSeconds, loopError))
         {
             result.errorMessage = loopError + " Original saved at: "
                                   + previewFile.getFullPathName();

@@ -313,6 +313,13 @@ bool ACEStepVST3AudioProcessor::exportSessionSummary(const juce::File& file)
                 << printableField(take.localFilePath.isNotEmpty() ? take.localFilePath
                                                                   : state_.resultLocalPaths[slotIndex])
                 << "\n";
+        if (take.originalFilePath.isNotEmpty())
+        {
+            summary << "  Original WAV: " << take.originalFilePath << "\n";
+            if (take.loopEndSeconds > take.loopStartSeconds)
+                summary << "  Crop in original: " << juce::String(take.loopStartSeconds, 3)
+                        << " - " << juce::String(take.loopEndSeconds, 3) << " seconds\n";
+        }
         summary << "  Seed: " << take.seed << "\n";
         summary << "  Duration: " << take.durationSeconds << " seconds\n";
         summary << "  Model: " << printableField(toString(take.modelPreset)) << "\n";
@@ -955,6 +962,10 @@ void ACEStepVST3AudioProcessor::applyCompletedTask(const BackendTaskResult& task
                 take.slotLabel = slot.label;
                 take.remoteFileUrl = slot.remoteFileUrl;
                 take.localFilePath = {};
+                take.originalFilePath = {};
+                take.loopStartSeconds = 0.0;
+                take.loopEndSeconds = 0.0;
+                take.loopBpm = state_.generationBpm;
                 take.statusText = "Rendered";
                 take.compareGroup = compareGroup;
                 take.seed = state_.seed;
@@ -1008,6 +1019,9 @@ void ACEStepVST3AudioProcessor::applyCompletedTask(const BackendTaskResult& task
                 const auto slotIndex = static_cast<size_t>(taskResult.previewDownload.slotIndex);
                 auto& take = state_.resultTakes[slotIndex];
                 take.localFilePath = taskResult.previewDownload.localFilePath;
+                take.originalFilePath = taskResult.previewDownload.originalFilePath;
+                take.loopStartSeconds = taskResult.previewDownload.loopStartSeconds;
+                take.loopEndSeconds = taskResult.previewDownload.loopEndSeconds;
                 take.statusText = "Preview cached";
                 take.updatedAtMs = juce::Time::currentTimeMillis();
                 mirrorTakeIntoLegacyFields(state_, taskResult.previewDownload.slotIndex);

@@ -9,7 +9,7 @@ namespace
 {
 constexpr int kEditorWidth = 1080;
 constexpr int kViewportHeight = 920;
-constexpr int kContentHeight = 1420;
+constexpr int kContentHeight = 1924; // Extra scrolling space for real waveform debugging.
 }  // namespace
 
 void ACEStepVST3AudioProcessorEditor::ScrollContent::paint(juce::Graphics& g)

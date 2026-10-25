@@ -41,6 +41,9 @@ struct PluginPreviewDownloadResult final
     int slotIndex = -1;
     bool succeeded = false;
     juce::String localFilePath;
+    juce::String originalFilePath;
+    double loopStartSeconds = 0.0;
+    double loopEndSeconds = 0.0;
     juce::String displayName;
     juce::String errorMessage;
 };
