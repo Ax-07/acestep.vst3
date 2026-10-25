@@ -4,6 +4,27 @@
 
 namespace acestep::vst3
 {
+void AudioDragButton::mouseDown(const juce::MouseEvent& event)
+{
+    dragStarted_ = false;
+    juce::TextButton::mouseDown(event);
+}
+
+void AudioDragButton::mouseDrag(const juce::MouseEvent& event)
+{
+    juce::TextButton::mouseDrag(event);
+    if (!isEnabled() || dragStarted_ || !event.mouseWasDraggedSinceMouseDown())
+    {
+        return;
+    }
+
+    dragStarted_ = true;
+    if (onDragStart)
+    {
+        onDragStart();
+    }
+}
+
 ResultDeckComponent::ResultDeckComponent()
 {
     resultLabel_.setText("Take Select", juce::dontSendNotification);
@@ -17,6 +38,7 @@ ResultDeckComponent::ResultDeckComponent()
     compareSummaryLabel_.setColour(juce::Label::textColourId, v2::kAccentMint);
     compareSummaryLabel_.setJustificationType(juce::Justification::centredLeft);
     dragToDawButton_.setButtonText("Drag WAV to Track");
+    dragToDawButton_.setTooltip("Drag onto a DAW audio track; click to reveal the file.");
     addAndMakeVisible(resultLabel_);
     addAndMakeVisible(resultSelector_);
     addAndMakeVisible(summaryLabel_);
@@ -85,7 +107,7 @@ juce::TextButton& ResultDeckComponent::toggleCompareButton() noexcept
 {
     return toggleCompareButton_;
 }
-juce::TextButton& ResultDeckComponent::dragToDawButton() noexcept { return dragToDawButton_; }
+AudioDragButton& ResultDeckComponent::dragToDawButton() noexcept { return dragToDawButton_; }
 
 void ResultDeckComponent::setTakeSummary(const juce::String& title, const juce::String& detail)
 {

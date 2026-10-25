@@ -461,20 +461,41 @@ PluginPreviewDownloadResult PluginBackendClient::downloadPreviewFile(const juce:
         return result;
     }
 
-    auto previewFile = juce::File::getSpecialLocation(juce::File::tempDirectory)
-                           .getNonexistentChildFile("acestep-vst3-preview-"
-                                                        + juce::String(slotIndex + 1),
-                                                    chooseFileExtension(remoteFileUrl),
-                                                    false);
-    juce::FileOutputStream output(previewFile);
-    if (!output.openedOk())
+    // Keep generated audio beyond this DAW session. Users can override the
+    // default Music/ACE-Step/Exports folder with ACESTEP_EXPORT_DIR.
+    const auto configuredDirectory =
+        juce::SystemStats::getEnvironmentVariable("ACESTEP_EXPORT_DIR", {}).trim();
+    const auto exportsDirectory = configuredDirectory.isNotEmpty()
+                                      ? juce::File(configuredDirectory)
+                                      : juce::File::getSpecialLocation(juce::File::userMusicDirectory)
+                                            .getChildFile("ACE-Step")
+                                            .getChildFile("Exports");
+    if (exportsDirectory.createDirectory().failed())
     {
-        result.errorMessage = "Could not create a temporary preview file.";
+        result.errorMessage = "Could not create the audio exports folder: "
+                              + exportsDirectory.getFullPathName();
         return result;
     }
 
-    output.writeFromInputStream(*stream, -1);
+    const auto filePrefix = "acestep-" + juce::Time::getCurrentTime().formatted("%Y%m%d-%H%M%S")
+                            + "-take-" + juce::String(slotIndex + 1);
+    auto previewFile = exportsDirectory.getNonexistentChildFile(filePrefix,
+                                                                chooseFileExtension(remoteFileUrl),
+                                                                false);
+    juce::FileOutputStream output(previewFile);
+    if (!output.openedOk())
+    {
+        result.errorMessage = "Could not create the audio export file.";
+        return result;
+    }
+
+    const auto bytesWritten = output.writeFromInputStream(*stream, -1);
     output.flush();
+    if (bytesWritten <= 0 || output.getStatus().failed())
+    {
+        result.errorMessage = "Could not save the generated audio file.";
+        return result;
+    }
 
     result.succeeded = true;
     result.localFilePath = previewFile.getFullPathName();

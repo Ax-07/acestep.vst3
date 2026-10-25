@@ -175,10 +175,11 @@ void ACEStepVST3AudioProcessorEditor::dragSelectedResultToDaw()
     processor_.getMutableState().errorMessage = {};
     juce::StringArray files;
     files.add(localPath);
-    if (!juce::DragAndDropContainer::performExternalDragDropOfFiles(files, false, this))
+    if (!juce::DragAndDropContainer::performExternalDragDropOfFiles(
+            files, false, &resultDeck_.dragToDawButton()))
     {
         processor_.getMutableState().errorMessage =
-            "Could not start drag-and-drop. Try Reveal and drag the file from Finder.";
+            "Could not start drag-and-drop. Click this button to reveal the file in Explorer.";
     }
     refreshStatusViews();
 }
