@@ -53,6 +53,21 @@ are sent to ACE-Step's Python `/release_task` API as `bpm`,
 - **Anti-click fades (5 ms)** is optional and **off by default** for bars,
   preserving electronic transients. Enable it only if you hear a click at
   the loop boundary. It does not affect seconds mode.
+- **Manual timing offset (ms)** is optional and **0 ms by default**. Negative
+  values advance the audio and positive values delay it, matching Ableton's
+  Track Delay convention. If a kick arrives 23 ms late, select **-23 ms**.
+  It rotates only the bar-length derivative without changing its duration.
+- **Auto-align kicks (4/4, experimental)** is optional and **off by default**.
+  When enabled, it takes precedence over Manual timing offset, analyzes
+  repeated attacks near the 4/4 quarter-note grid, and shifts their phase.
+  If there are not enough consistent attacks, or the time signature is not
+  4/4, the export stays unshifted. Check the take's status for the applied
+  offset or an auto-align skipped message. The detector is intended for
+  kick-driven dance loops; it can be inaccurate on pads, syncopated grooves,
+  or mixes with very loud non-kick transients.
+- Both timing options apply **only** to bar-length derivatives. The original
+  longer WAV and the 10/30/60/120-second modes remain untouched, and the
+  bar-length WAV always contains exactly the requested number of samples.
 - **The model still cannot guarantee a seamlessly repeating phrase.**
   If needed, adjust its entry point, transients or crossfades in Ableton.
 - If the host does not provide tempo, start Ableton's transport. ACE-Step

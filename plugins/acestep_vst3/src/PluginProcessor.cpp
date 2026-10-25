@@ -468,6 +468,9 @@ void ACEStepVST3AudioProcessor::requestGeneration()
     state_.generationLoopBars = 0;
     state_.generationLoopDurationSeconds = 0.0;
     state_.generationLoopAntiClickFades = false;
+    state_.generationLoopAutoAlign = false;
+    state_.generationLoopManualOffsetMs = 0;
+    state_.generationLoopFourFour = false;
 
     juce::String timingError;
     if (state_.loopBars > 0 && !state_.syncToHostBpm)
@@ -508,6 +511,10 @@ void ACEStepVST3AudioProcessor::requestGeneration()
                     state_.generationLoopBars = state_.loopBars;
                     state_.generationLoopDurationSeconds = seconds;
                     state_.generationLoopAntiClickFades = state_.loopAntiClickFades;
+                    state_.generationLoopAutoAlign = state_.loopAutoAlign;
+                    state_.generationLoopManualOffsetMs = state_.loopManualOffsetMs;
+                    state_.generationLoopFourFour =
+                        timing.numerator == 4 && timing.denominator == 4;
                 }
             }
         }
@@ -735,13 +742,18 @@ void ACEStepVST3AudioProcessor::schedulePreviewDownload(int slotIndex)
     const auto loopSeconds = take.loopDurationSeconds;
     const auto loopBars = take.loopBars;
     const auto antiClickFades = take.loopAntiClickFades;
+    const auto autoAlign = take.loopAutoAlign;
+    const auto manualOffsetMs = take.loopManualOffsetMs;
+    const auto fourFour = take.loopFourFour;
     backendThreadPool_.addJob(std::function<juce::ThreadPoolJob::JobStatus()>(
-        [this, baseUrl, remoteFileUrl, slotIndex, loopSeconds, loopBars, antiClickFades]() {
+        [this, baseUrl, remoteFileUrl, slotIndex, loopSeconds, loopBars,
+         antiClickFades, autoAlign, manualOffsetMs, fourFour]() {
             BackendTaskResult taskResult;
             taskResult.kind = BackendTaskKind::downloadPreview;
             taskResult.previewDownload =
                 backendClient_.downloadPreviewFile(baseUrl, remoteFileUrl, slotIndex,
-                                                   loopSeconds, loopBars, antiClickFades);
+                                                   loopSeconds, loopBars, antiClickFades,
+                                                   autoAlign, manualOffsetMs, fourFour);
             const juce::ScopedLock lock(backendTaskLock_);
             completedBackendTask_ = std::move(taskResult);
             backendTaskRunning_.store(false);
@@ -964,6 +976,9 @@ void ACEStepVST3AudioProcessor::applyCompletedTask(const BackendTaskResult& task
                 take.loopBars = state_.generationLoopBars;
                 take.loopDurationSeconds = state_.generationLoopDurationSeconds;
                 take.loopAntiClickFades = state_.generationLoopAntiClickFades;
+                take.loopAutoAlign = state_.generationLoopAutoAlign;
+                take.loopManualOffsetMs = state_.generationLoopManualOffsetMs;
+                take.loopFourFour = state_.generationLoopFourFour;
                 if (take.loopBars > 0)
                     take.slotLabel += " // " + juce::String(take.loopBars) + " bars @ "
                                       + juce::String(state_.generationBpm) + " BPM";
@@ -1009,6 +1024,19 @@ void ACEStepVST3AudioProcessor::applyCompletedTask(const BackendTaskResult& task
                 auto& take = state_.resultTakes[slotIndex];
                 take.localFilePath = taskResult.previewDownload.localFilePath;
                 take.statusText = "Preview cached";
+                if (taskResult.previewDownload.autoAlignAttempted)
+                {
+                    if (taskResult.previewDownload.autoAligned)
+                        take.statusText += " // auto timing "
+                                           + juce::String(taskResult.previewDownload.appliedOffsetMs)
+                                           + " ms";
+                    else
+                        take.statusText += " // auto timing skipped (no confident 4/4 kick grid)";
+                }
+                else if (take.loopBars > 0 && taskResult.previewDownload.appliedOffsetMs != 0)
+                    take.statusText += " // manual timing "
+                                       + juce::String(taskResult.previewDownload.appliedOffsetMs)
+                                       + " ms";
                 take.updatedAtMs = juce::Time::currentTimeMillis();
                 mirrorTakeIntoLegacyFields(state_, taskResult.previewDownload.slotIndex);
                 if (state_.selectedResultSlot == taskResult.previewDownload.slotIndex)
