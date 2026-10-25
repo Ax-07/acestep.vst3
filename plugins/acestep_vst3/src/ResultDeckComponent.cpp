@@ -38,7 +38,7 @@ ResultDeckComponent::ResultDeckComponent()
     compareSummaryLabel_.setColour(juce::Label::textColourId, v2::kAccentMint);
     compareSummaryLabel_.setJustificationType(juce::Justification::centredLeft);
     dragToDawButton_.setButtonText("Drag WAV to Track");
-    dragToDawButton_.setTooltip("Drag onto a DAW audio track; click to reveal the file.");
+    dragToDawButton_.setTooltip("Hold the mouse button and drag the audio onto a DAW track.");
     addAndMakeVisible(resultLabel_);
     addAndMakeVisible(resultSelector_);
     addAndMakeVisible(summaryLabel_);

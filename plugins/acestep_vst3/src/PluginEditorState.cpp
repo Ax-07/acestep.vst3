@@ -183,7 +183,6 @@ void ACEStepVST3AudioProcessorEditor::configureSelectors()
     resultDeck_.cueCompareBButton().onClick = [this] { cueCompareSecondary(); };
     resultDeck_.toggleCompareButton().onClick = [this] { toggleComparePreview(); };
     resultDeck_.dragToDawButton().onDragStart = [this] { dragSelectedResultToDaw(); };
-    resultDeck_.dragToDawButton().onClick = [this] { revealPreviewFile(); };
 
     transport_.generateButton().onClick = [this] {
         persistTextFields();

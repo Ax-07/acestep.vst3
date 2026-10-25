@@ -15,7 +15,8 @@ selection in the DAW project. Generated audio is previewed in the plugin; it is
 2. Set **Signal Path** to `http://127.0.0.1:8001`.
 3. Generate audio and wait for a completed take in **Result Deck**.
 4. **Press and drag** the **Drag WAV to Track** button onto an Ableton audio track.
-   A simple **click** on that button opens the audio in Explorer/Finder instead.
+   A simple click does not open anything; use the separate **Reveal** button
+   to locate the file in Explorer/Finder.
 5. If the native drag is rejected by your host, use **Reveal** in Preview Deck
    and drag the file from Explorer/Finder. This is a host-dependent fallback.
 
@@ -66,7 +67,7 @@ DAW's VST3 plugin folder after closing the DAW.
 
 - Plugin opens and the configured API server reports healthy.
 - Generating a take downloads playable audio to the exports folder.
-- Click **Drag WAV to Track** -> the saved file is revealed.
+- Click **Drag WAV to Track** -> no action; use **Reveal** to open the saved file.
 - Press-and-drag **Drag WAV to Track** -> a native file drag starts.
 - Drop the file onto a DAW audio track; if rejected, use Reveal + OS drag.
 - Save/reopen the DAW project and verify plugin state is restored.
