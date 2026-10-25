@@ -23,9 +23,6 @@ struct PluginResultTake final
     int loopBars = 0;
     double loopDurationSeconds = 0.0;
     bool loopAntiClickFades = false;
-    bool loopAutoAlign = false;
-    int loopManualOffsetMs = 0;
-    bool loopFourFour = false;
     ModelPreset modelPreset = ModelPreset::turbo;
     QualityMode qualityMode = QualityMode::balanced;
     juce::int64 updatedAtMs = 0;
@@ -59,8 +56,6 @@ struct PluginState final
     int loopBars = 0;  // 0 = fixed seconds; otherwise 4, 8, 16 or 32 bars.
     bool syncToHostBpm = false;
     bool loopAntiClickFades = false;  // Opt-in 5 ms start/end fades for bar exports.
-    bool loopAutoAlign = false;  // Opt-in kick-grid detection for 4/4 bar exports.
-    int loopManualOffsetMs = 0;  // Negative advances audio, positive delays it.
     int seed = kDefaultSeed;
     // The following fields snapshot Ableton's timing when Generate is pressed.
     // They are per-render data, not persistent user preferences.
@@ -69,9 +64,6 @@ struct PluginState final
     int generationLoopBars = 0;
     double generationLoopDurationSeconds = 0.0;
     bool generationLoopAntiClickFades = false;
-    bool generationLoopAutoAlign = false;
-    int generationLoopManualOffsetMs = 0;
-    bool generationLoopFourFour = false;
     double audioCoverStrength = 0.6;
     ModelPreset modelPreset = ModelPreset::turbo;
     QualityMode qualityMode = QualityMode::balanced;

@@ -30,7 +30,7 @@ SynthPanelComponent::SynthPanelComponent()
                         &referenceAudioLabel_, &sourceAudioLabel_, &conditioningCodesLabel_,
                         &coverStrengthLabel_, &loraPathLabel_, &loraAdapterLabel_,
                         &loraScaleLabel_, &loraStatusLabel_, &durationLabel_, &bpmStatusLabel_,
-                        &manualOffsetLabel_, &seedLabel_,
+                         &seedLabel_,
                         &modelLabel_, &qualityLabel_})
     {
         label->setColour(juce::Label::textColourId, v2::kLabelMuted);
@@ -51,18 +51,8 @@ SynthPanelComponent::SynthPanelComponent()
     loraStatusLabel_.setText("No LoRA loaded.", juce::dontSendNotification);
     durationLabel_.setText("Length", juce::dontSendNotification);
     bpmStatusLabel_.setText("DAW // tempo not detected", juce::dontSendNotification);
-    manualOffsetLabel_.setText("Manual timing offset (ms)", juce::dontSendNotification);
     antiClickToggle_.setTooltip("Optional 5 ms boundary fades on exported bar loops. "
                                 "Off preserves transients but may click at a hard loop point.");
-    autoAlignToggle_.setTooltip("Experimental: detect kick attacks near the 4/4 beat grid. "
-                                "If detection is uncertain, the export stays unshifted. "
-                                "Overrides the manual timing setting when enabled.");
-    manualOffsetSlider_.setSliderStyle(juce::Slider::LinearHorizontal);
-    manualOffsetSlider_.setTextBoxStyle(juce::Slider::TextBoxRight, false, 72, 22);
-    manualOffsetSlider_.setRange(-100.0, 100.0, 1.0);
-    manualOffsetSlider_.setTextValueSuffix(" ms");
-    manualOffsetSlider_.setTooltip("Negative advances the audio (e.g. -23 ms for late kicks); "
-                                   "positive delays it. Only affects bar-length WAVs.");
     bpmStatusLabel_.setColour(juce::Label::textColourId, v2::kAccentMint);
     durationBox_.setTooltip("Choose seconds, or a bar length synced to Ableton. "
                             "Loop exports have exact length, but may need an Ableton crossfade.");
@@ -95,8 +85,6 @@ SynthPanelComponent::SynthPanelComponent()
                             static_cast<juce::Component*>(&durationBox_),
                             static_cast<juce::Component*>(&bpmSyncToggle_),
                             static_cast<juce::Component*>(&antiClickToggle_),
-                            static_cast<juce::Component*>(&autoAlignToggle_),
-                            static_cast<juce::Component*>(&manualOffsetSlider_),
                             static_cast<juce::Component*>(&modelBox_),
                             static_cast<juce::Component*>(&qualityBox_),
                             static_cast<juce::Component*>(&loraAdapterBox_),
@@ -152,10 +140,6 @@ void SynthPanelComponent::resized()
     bpmStatusLabel_.setBounds(left.removeFromTop(22));
     left.removeFromTop(6);
     antiClickToggle_.setBounds(left.removeFromTop(26));
-    autoAlignToggle_.setBounds(left.removeFromTop(28));
-    left.removeFromTop(4);
-    manualOffsetLabel_.setBounds(left.removeFromTop(labelHeight));
-    manualOffsetSlider_.setBounds(left.removeFromTop(28));
 
     auto topParamLabels = right.removeFromTop(labelHeight);
     durationLabel_.setBounds(topParamLabels.removeFromLeft(right.getWidth() / 2 - 8));
@@ -230,8 +214,6 @@ juce::ComboBox& SynthPanelComponent::modeBox() noexcept { return modeBox_; }
 juce::ComboBox& SynthPanelComponent::durationBox() noexcept { return durationBox_; }
 juce::ToggleButton& SynthPanelComponent::bpmSyncToggle() noexcept { return bpmSyncToggle_; }
 juce::ToggleButton& SynthPanelComponent::antiClickToggle() noexcept { return antiClickToggle_; }
-juce::ToggleButton& SynthPanelComponent::autoAlignToggle() noexcept { return autoAlignToggle_; }
-juce::Slider& SynthPanelComponent::manualOffsetSlider() noexcept { return manualOffsetSlider_; }
 juce::Label& SynthPanelComponent::bpmStatusLabel() noexcept { return bpmStatusLabel_; }
 juce::ComboBox& SynthPanelComponent::modelBox() noexcept { return modelBox_; }
 juce::ComboBox& SynthPanelComponent::qualityBox() noexcept { return qualityBox_; }

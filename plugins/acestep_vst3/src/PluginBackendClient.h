@@ -40,9 +40,6 @@ struct PluginPreviewDownloadResult final
 {
     int slotIndex = -1;
     bool succeeded = false;
-    bool autoAlignAttempted = false;
-    bool autoAligned = false;
-    int appliedOffsetMs = 0;
     juce::String localFilePath;
     juce::String displayName;
     juce::String errorMessage;
@@ -79,10 +76,7 @@ public:
                                                                   int slotIndex,
                                                                   double loopDurationSeconds = 0.0,
                                                                   int loopBars = 0,
-                                                                  bool antiClickFades = false,
-                                                                  bool autoAlign = false,
-                                                                  int manualOffsetMs = 0,
-                                                                  bool fourFour = false) const;
+                                                                  bool antiClickFades = false) const;
     [[nodiscard]] PluginLoRAStatusResult getLoRAStatus(const juce::String& baseUrl) const;
     [[nodiscard]] PluginLoRAOperationResult loadLoRA(const juce::String& baseUrl,
                                                      const juce::String& loraPath) const;

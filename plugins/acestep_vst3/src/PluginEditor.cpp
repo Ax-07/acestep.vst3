@@ -9,7 +9,7 @@ namespace
 {
 constexpr int kEditorWidth = 1080;
 constexpr int kViewportHeight = 920;
-constexpr int kContentHeight = 1512;
+constexpr int kContentHeight = 1420;
 }  // namespace
 
 void ACEStepVST3AudioProcessorEditor::ScrollContent::paint(juce::Graphics& g)
@@ -66,7 +66,7 @@ void ACEStepVST3AudioProcessorEditor::resized()
     statusStrip_.setBounds(bounds.removeFromTop(96));
     bounds.removeFromTop(14);
 
-    auto upper = bounds.removeFromTop(612);
+    auto upper = bounds.removeFromTop(520);
     bounds.removeFromTop(14);
     auto compositionBounds = bounds.removeFromTop(296);
     bounds.removeFromTop(14);

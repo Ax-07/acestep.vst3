@@ -1,5 +1,4 @@
 #include "PluginBackendClient.h"
-#include "LoopAlignment.h"
 
 #include <cmath>
 
@@ -186,76 +185,13 @@ juce::String chooseFileExtension(const juce::String& remoteFileUrl)
 
 // Extract a bar-aligned passage from the interior of a longer AI render.
 // Keep the untouched original for further editing in the DAW.
-int detectBarLoopOffsetMs(juce::AudioFormatReader& reader,
-                          juce::int64 startSample,
-                          juce::int64 totalSamples,
-                          double durationSeconds,
-                          int loopBars,
-                          bool& detected)
-{
-    detected = false;
-    // This experimental detector assumes four quarter-note kicks per bar.
-    // Examine up to four bars without loading a long render into memory.
-    const auto secondsPerBar = durationSeconds / loopBars;
-    const auto analysisSeconds = juce::jmin(durationSeconds,
-                                           juce::jmin(12.0, 4.0 * secondsPerBar));
-    const auto analysisSamples = static_cast<int>(juce::jmin<juce::int64>(
-        totalSamples, static_cast<juce::int64>(std::llround(analysisSeconds * reader.sampleRate))));
-    if (analysisSamples <= 0)
-        return 0;
-
-    juce::AudioBuffer<float> audio(static_cast<int>(reader.numChannels), analysisSamples);
-    audio.clear();
-    if (!reader.read(&audio, 0, analysisSamples, startSample, true, true))
-        return 0;
-
-    // Derive each 1 ms boundary from the sample rate; a fixed rounded hop
-    // would drift at 44.1 kHz (44 samples is not exactly one millisecond).
-    const auto binCount = static_cast<int>(std::ceil(
-        analysisSamples * 1000.0 / reader.sampleRate));
-    std::vector<float> energy(static_cast<size_t>(binCount), 0.0f);
-    for (int bin = 0; bin < binCount; ++bin)
-    {
-        const auto begin = juce::jmin(analysisSamples, juce::roundToInt(
-            bin * reader.sampleRate / 1000.0));
-        const auto end = juce::jmin(analysisSamples, juce::roundToInt(
-            (bin + 1) * reader.sampleRate / 1000.0));
-        if (end <= begin)
-            continue;
-        double total = 0.0;
-        for (int channel = 0; channel < audio.getNumChannels(); ++channel)
-        {
-            const auto* samples = audio.getReadPointer(channel);
-            for (int sample = begin; sample < end; ++sample)
-                total += std::abs(samples[sample]);
-        }
-        energy[static_cast<size_t>(bin)] = static_cast<float>(
-            total / ((end - begin) * audio.getNumChannels()));
-    }
-
-    // A rising amplitude envelope is a useful lightweight kick/transient
-    // proxy. Repeated strong attacks must agree on a common grid phase.
-    const auto onset = makeRiseOnset(energy);
-    const auto beatPeriodMs = 1000.0 * secondsPerBar / 4.0;
-    const auto estimate = estimateBeatOffsetMs(onset, beatPeriodMs);
-    detected = estimate.confident;
-    return detected ? -estimate.beatOffsetMs : 0;
-}
-
 bool writeBarLengthWav(const juce::File& sourceFile,
                        const juce::File& loopFile,
                        double durationSeconds,
                        int loopBars,
                        bool antiClickFades,
-                       bool autoAlign,
-                       int manualOffsetMs,
-                       bool fourFour,
-                       int& appliedOffsetMs,
-                       bool& autoDetected,
                        juce::String& errorMessage)
 {
-    appliedOffsetMs = 0;
-    autoDetected = false;
     if (!std::isfinite(durationSeconds) || durationSeconds <= 0.0 || loopBars <= 0)
     {
         errorMessage = "Invalid target loop length.";
@@ -310,15 +246,6 @@ bool writeBarLengthWav(const juce::File& sourceFile,
         static_cast<juce::int64>(
             std::llround(startBar * secondsPerBar * reader->sampleRate)));
 
-    // Match Ableton Track Delay semantics: negative advances the audio.
-    // Auto mode overrides manual offset and only runs for 4/4 material.
-    appliedOffsetMs = autoAlign ? 0 : juce::jlimit(-100, 100, manualOffsetMs);
-    if (autoAlign && fourFour)
-        appliedOffsetMs = detectBarLoopOffsetMs(*reader, startSample, totalSamples,
-                                                 durationSeconds, loopBars, autoDetected);
-    const auto offsetSamples = static_cast<juce::int64>(
-        std::llround(appliedOffsetMs * reader->sampleRate / 1000.0));
-
     const auto fadeSamples = juce::jmax<juce::int64>(
         1, static_cast<juce::int64>(std::llround(reader->sampleRate * 0.005)));
     constexpr int kChunkSamples = 4096;
@@ -329,15 +256,7 @@ bool writeBarLengthWav(const juce::File& sourceFile,
         const auto chunk = static_cast<int>(juce::jmin<juce::int64>(
             kChunkSamples, totalSamples - offset));
         samples.clear();
-        // Circularly rotate, preserving the exact duration and all frames.
-        // Never pad with silence or trim transients at the edges.
-        const auto sourceOffset = wrappedReadOffset(offset, totalSamples, offsetSamples);
-        const auto firstPart = static_cast<int>(juce::jmin<juce::int64>(
-            chunk, totalSamples - sourceOffset));
-        if (!reader->read(&samples, 0, firstPart, startSample + sourceOffset, true, true)
-            || (firstPart < chunk
-                && !reader->read(&samples, firstPart, chunk - firstPart, startSample,
-                                 true, true)))
+        if (!reader->read(&samples, 0, chunk, startSample + offset, true, true))
         {
             errorMessage = "Could not read the generated WAV for loop export.";
             return false;
@@ -653,10 +572,7 @@ PluginPreviewDownloadResult PluginBackendClient::downloadPreviewFile(const juce:
                                                                      int slotIndex,
                                                                      double loopDurationSeconds,
                                                                      int loopBars,
-                                                                     bool antiClickFades,
-                                                                     bool autoAlign,
-                                                                     int manualOffsetMs,
-                                                                     bool fourFour) const
+                                                                     bool antiClickFades) const
 {
     PluginPreviewDownloadResult result;
     result.slotIndex = slotIndex;
@@ -725,15 +641,13 @@ PluginPreviewDownloadResult PluginBackendClient::downloadPreviewFile(const juce:
             filePrefix + "-" + juce::String(loopBars) + "bars", ".wav", false);
         juce::String loopError;
         if (!writeBarLengthWav(previewFile, loopFile, loopDurationSeconds,
-                               loopBars, antiClickFades, autoAlign, manualOffsetMs,
-                               fourFour, result.appliedOffsetMs, result.autoAligned, loopError))
+                               loopBars, antiClickFades, loopError))
         {
             result.errorMessage = loopError + " Original saved at: "
                                   + previewFile.getFullPathName();
             return result;
         }
         previewFile = loopFile;
-        result.autoAlignAttempted = autoAlign;
     }
 
     result.succeeded = true;

@@ -24,8 +24,6 @@ public:
     juce::ComboBox& durationBox() noexcept;
     juce::ToggleButton& bpmSyncToggle() noexcept;
     juce::ToggleButton& antiClickToggle() noexcept;
-    juce::ToggleButton& autoAlignToggle() noexcept;
-    juce::Slider& manualOffsetSlider() noexcept;
     juce::Label& bpmStatusLabel() noexcept;
     juce::ComboBox& modelBox() noexcept;
     juce::ComboBox& qualityBox() noexcept;
@@ -56,7 +54,6 @@ private:
     juce::Label loraStatusLabel_;
     juce::Label durationLabel_;
     juce::Label bpmStatusLabel_;
-    juce::Label manualOffsetLabel_;
     juce::Label seedLabel_;
     juce::Label modelLabel_;
     juce::Label qualityLabel_;
@@ -72,8 +69,6 @@ private:
     juce::ComboBox durationBox_;
     juce::ToggleButton bpmSyncToggle_ {"Sync BPM to DAW"};
     juce::ToggleButton antiClickToggle_ {"Anti-click fades (5 ms)"};
-    juce::ToggleButton autoAlignToggle_ {"Auto-align kicks (4/4, experimental)"};
-    juce::Slider manualOffsetSlider_;
     juce::ComboBox modelBox_;
     juce::ComboBox qualityBox_;
     juce::ComboBox loraAdapterBox_;

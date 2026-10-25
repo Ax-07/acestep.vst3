@@ -137,8 +137,6 @@ void ACEStepVST3AudioProcessorEditor::configureSelectors()
     };
     synthPanel_.bpmSyncToggle().onClick = [this] { persistTextFields(); };
     synthPanel_.antiClickToggle().onClick = [this] { persistTextFields(); };
-    synthPanel_.autoAlignToggle().onClick = [this] { persistTextFields(); };
-    synthPanel_.manualOffsetSlider().onValueChange = [this] { persistTextFields(); };
     modelBox.onChange = [this] { persistTextFields(); };
     qualityBox.onChange = [this] { persistTextFields(); };
     loraAdapterBox.onChange = [this] { persistTextFields(); };
@@ -240,10 +238,6 @@ void ACEStepVST3AudioProcessorEditor::syncFromProcessor()
     synthPanel_.bpmSyncToggle().setToggleState(state.syncToHostBpm, juce::dontSendNotification);
     synthPanel_.antiClickToggle().setToggleState(state.loopAntiClickFades,
                                                  juce::dontSendNotification);
-    synthPanel_.autoAlignToggle().setToggleState(state.loopAutoAlign,
-                                               juce::dontSendNotification);
-    synthPanel_.manualOffsetSlider().setValue(state.loopManualOffsetMs,
-                                              juce::dontSendNotification);
     synthPanel_.modelBox().setSelectedId(static_cast<int>(state.modelPreset) + 1,
                                          juce::dontSendNotification);
     synthPanel_.qualityBox().setSelectedId(static_cast<int>(state.qualityMode) + 1,
@@ -313,9 +307,6 @@ void ACEStepVST3AudioProcessorEditor::persistTextFields()
     }
     state.syncToHostBpm = synthPanel_.bpmSyncToggle().getToggleState();
     state.loopAntiClickFades = synthPanel_.antiClickToggle().getToggleState();
-    state.loopAutoAlign = synthPanel_.autoAlignToggle().getToggleState();
-    state.loopManualOffsetMs = juce::jlimit(-100, 100,
-        juce::roundToInt(synthPanel_.manualOffsetSlider().getValue()));
     state.seed = seedEditor.getText().getIntValue();
     state.audioCoverStrength = coverStrengthSlider.getValue();
     state.loraScale = loraScaleSlider.getValue();
@@ -460,8 +451,6 @@ void ACEStepVST3AudioProcessorEditor::refreshStatusViews()
     resultDeck_.dragToDawButton().setEnabled(!localPath.isEmpty());
 
     synthPanel_.antiClickToggle().setEnabled(state.loopBars > 0);
-    synthPanel_.autoAlignToggle().setEnabled(state.loopBars > 0);
-    synthPanel_.manualOffsetSlider().setEnabled(state.loopBars > 0 && !state.loopAutoAlign);
 
     const auto hostTiming = processor_.getHostTiming();
     synthPanel_.bpmStatusLabel().setText(
