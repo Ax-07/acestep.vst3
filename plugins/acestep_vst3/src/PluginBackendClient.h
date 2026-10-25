@@ -73,7 +73,9 @@ public:
                                                             const juce::String& taskId) const;
     [[nodiscard]] PluginPreviewDownloadResult downloadPreviewFile(const juce::String& baseUrl,
                                                                   const juce::String& remoteFileUrl,
-                                                                  int slotIndex) const;
+                                                                  int slotIndex,
+                                                                  double loopDurationSeconds = 0.0,
+                                                                  int loopBars = 0) const;
     [[nodiscard]] PluginLoRAStatusResult getLoRAStatus(const juce::String& baseUrl) const;
     [[nodiscard]] PluginLoRAOperationResult loadLoRA(const juce::String& baseUrl,
                                                      const juce::String& loraPath) const;

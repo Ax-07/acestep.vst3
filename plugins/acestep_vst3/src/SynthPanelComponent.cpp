@@ -29,7 +29,8 @@ SynthPanelComponent::SynthPanelComponent()
     for (auto* label : {&backendUrlLabel_, &promptLabel_, &lyricsLabel_, &modeLabel_,
                         &referenceAudioLabel_, &sourceAudioLabel_, &conditioningCodesLabel_,
                         &coverStrengthLabel_, &loraPathLabel_, &loraAdapterLabel_,
-                        &loraScaleLabel_, &loraStatusLabel_, &durationLabel_, &seedLabel_,
+                        &loraScaleLabel_, &loraStatusLabel_, &durationLabel_, &bpmStatusLabel_,
+                         &seedLabel_,
                         &modelLabel_, &qualityLabel_})
     {
         label->setColour(juce::Label::textColourId, v2::kLabelMuted);
@@ -48,7 +49,11 @@ SynthPanelComponent::SynthPanelComponent()
     loraAdapterLabel_.setText("LoRA Adapter", juce::dontSendNotification);
     loraScaleLabel_.setText("LoRA Scale", juce::dontSendNotification);
     loraStatusLabel_.setText("No LoRA loaded.", juce::dontSendNotification);
-    durationLabel_.setText("Duration", juce::dontSendNotification);
+    durationLabel_.setText("Length", juce::dontSendNotification);
+    bpmStatusLabel_.setText("DAW // tempo not detected", juce::dontSendNotification);
+    bpmStatusLabel_.setColour(juce::Label::textColourId, v2::kAccentMint);
+    durationBox_.setTooltip("Choose seconds, or a bar length synced to Ableton. "
+                            "Loop exports have exact length, but may need an Ableton crossfade.");
     seedLabel_.setText("Seed", juce::dontSendNotification);
     modelLabel_.setText("Engine", juce::dontSendNotification);
     qualityLabel_.setText("Quality", juce::dontSendNotification);
@@ -76,6 +81,7 @@ SynthPanelComponent::SynthPanelComponent()
                             static_cast<juce::Component*>(&loraPathEditor_),
                             static_cast<juce::Component*>(&seedEditor_),
                             static_cast<juce::Component*>(&durationBox_),
+                            static_cast<juce::Component*>(&bpmSyncToggle_),
                             static_cast<juce::Component*>(&modelBox_),
                             static_cast<juce::Component*>(&qualityBox_),
                             static_cast<juce::Component*>(&loraAdapterBox_),
@@ -126,6 +132,9 @@ void SynthPanelComponent::resized()
     left.removeFromTop(8);
     lyricsLabel_.setBounds(left.removeFromTop(labelHeight));
     lyricsEditor_.setBounds(left.removeFromTop(118));
+    left.removeFromTop(12);
+    bpmSyncToggle_.setBounds(left.removeFromTop(28));
+    bpmStatusLabel_.setBounds(left.removeFromTop(22));
 
     auto topParamLabels = right.removeFromTop(labelHeight);
     durationLabel_.setBounds(topParamLabels.removeFromLeft(right.getWidth() / 2 - 8));
@@ -198,6 +207,8 @@ juce::TextEditor& SynthPanelComponent::loraPathEditor() noexcept { return loraPa
 juce::TextEditor& SynthPanelComponent::seedEditor() noexcept { return seedEditor_; }
 juce::ComboBox& SynthPanelComponent::modeBox() noexcept { return modeBox_; }
 juce::ComboBox& SynthPanelComponent::durationBox() noexcept { return durationBox_; }
+juce::ToggleButton& SynthPanelComponent::bpmSyncToggle() noexcept { return bpmSyncToggle_; }
+juce::Label& SynthPanelComponent::bpmStatusLabel() noexcept { return bpmStatusLabel_; }
 juce::ComboBox& SynthPanelComponent::modelBox() noexcept { return modelBox_; }
 juce::ComboBox& SynthPanelComponent::qualityBox() noexcept { return qualityBox_; }
 juce::ComboBox& SynthPanelComponent::loraAdapterBox() noexcept { return loraAdapterBox_; }

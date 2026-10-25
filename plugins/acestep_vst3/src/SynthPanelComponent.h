@@ -22,6 +22,8 @@ public:
     juce::TextEditor& seedEditor() noexcept;
     juce::ComboBox& modeBox() noexcept;
     juce::ComboBox& durationBox() noexcept;
+    juce::ToggleButton& bpmSyncToggle() noexcept;
+    juce::Label& bpmStatusLabel() noexcept;
     juce::ComboBox& modelBox() noexcept;
     juce::ComboBox& qualityBox() noexcept;
     juce::ComboBox& loraAdapterBox() noexcept;
@@ -50,6 +52,7 @@ private:
     juce::Label loraScaleLabel_;
     juce::Label loraStatusLabel_;
     juce::Label durationLabel_;
+    juce::Label bpmStatusLabel_;
     juce::Label seedLabel_;
     juce::Label modelLabel_;
     juce::Label qualityLabel_;
@@ -63,6 +66,7 @@ private:
     juce::TextEditor seedEditor_;
     juce::ComboBox modeBox_;
     juce::ComboBox durationBox_;
+    juce::ToggleButton bpmSyncToggle_ {"Sync BPM to DAW"};
     juce::ComboBox modelBox_;
     juce::ComboBox qualityBox_;
     juce::ComboBox loraAdapterBox_;

@@ -118,6 +118,10 @@ void ACEStepVST3AudioProcessorEditor::configureSelectors()
     {
         durationBox.addItem(juce::String(duration) + " seconds", duration);
     }
+    for (const auto bars : {4, 8, 16, 32})
+    {
+        durationBox.addItem(juce::String(bars) + " bars (DAW BPM)", 1000 + bars);
+    }
     modelBox.addItem(toString(ModelPreset::turbo), 1);
     modelBox.addItem(toString(ModelPreset::standard), 2);
     modelBox.addItem(toString(ModelPreset::quality), 3);
@@ -126,7 +130,12 @@ void ACEStepVST3AudioProcessorEditor::configureSelectors()
     qualityBox.addItem(toString(QualityMode::high), 3);
     loraAdapterBox.setTextWhenNothingSelected("Default");
 
-    durationBox.onChange = [this] { persistTextFields(); };
+    durationBox.onChange = [this] {
+        if (synthPanel_.durationBox().getSelectedId() >= 1004)
+            synthPanel_.bpmSyncToggle().setToggleState(true, juce::dontSendNotification);
+        persistTextFields();
+    };
+    synthPanel_.bpmSyncToggle().onClick = [this] { persistTextFields(); };
     modelBox.onChange = [this] { persistTextFields(); };
     qualityBox.onChange = [this] { persistTextFields(); };
     loraAdapterBox.onChange = [this] { persistTextFields(); };
@@ -222,7 +231,10 @@ void ACEStepVST3AudioProcessorEditor::syncFromProcessor()
                                                  juce::dontSendNotification);
     synthPanel_.loraPathEditor().setText(state.loraPath, juce::dontSendNotification);
     synthPanel_.seedEditor().setText(juce::String(state.seed), juce::dontSendNotification);
-    synthPanel_.durationBox().setSelectedId(state.durationSeconds, juce::dontSendNotification);
+    synthPanel_.durationBox().setSelectedId(
+        state.loopBars > 0 ? 1000 + state.loopBars : state.durationSeconds,
+        juce::dontSendNotification);
+    synthPanel_.bpmSyncToggle().setToggleState(state.syncToHostBpm, juce::dontSendNotification);
     synthPanel_.modelBox().setSelectedId(static_cast<int>(state.modelPreset) + 1,
                                          juce::dontSendNotification);
     synthPanel_.qualityBox().setSelectedId(static_cast<int>(state.qualityMode) + 1,
@@ -280,8 +292,17 @@ void ACEStepVST3AudioProcessorEditor::persistTextFields()
     state.chordProgression = chordProgressionEditor.getText();
     state.exportNotes = exportNotesEditor.getText();
     state.loraPath = loraPathEditor.getText().trim();
-    state.durationSeconds = durationBox.getSelectedId() == 0 ? kDefaultDurationSeconds
-                                                             : durationBox.getSelectedId();
+    const auto durationId = durationBox.getSelectedId();
+    if (durationId >= 1004)
+    {
+        state.loopBars = durationId - 1000;
+    }
+    else
+    {
+        state.loopBars = 0;
+        state.durationSeconds = durationId == 0 ? kDefaultDurationSeconds : durationId;
+    }
+    state.syncToHostBpm = synthPanel_.bpmSyncToggle().getToggleState();
     state.seed = seedEditor.getText().getIntValue();
     state.audioCoverStrength = coverStrengthSlider.getValue();
     state.loraScale = loraScaleSlider.getValue();
@@ -424,6 +445,15 @@ void ACEStepVST3AudioProcessorEditor::refreshStatusViews()
     resultDeck_.toggleCompareButton().setButtonText(state.compareOnPrimary ? "Toggle to B"
                                                                            : "Toggle to A");
     resultDeck_.dragToDawButton().setEnabled(!localPath.isEmpty());
+
+    const auto hostTiming = processor_.getHostTiming();
+    synthPanel_.bpmStatusLabel().setText(
+        hostTiming.bpm > 0.0
+            ? "DAW // " + juce::String(hostTiming.bpm, 1) + " BPM // "
+                  + juce::String(hostTiming.numerator) + "/"
+                  + juce::String(hostTiming.denominator)
+            : "DAW // tempo not detected (play transport)",
+        juce::dontSendNotification);
 
     synthPanel_.loraStatusLabel().setText(state.loraStatusText.isEmpty() ? "No LoRA loaded."
                                                                          : state.loraStatusText,

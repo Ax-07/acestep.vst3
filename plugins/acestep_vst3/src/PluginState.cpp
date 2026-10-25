@@ -38,7 +38,7 @@ void importLegacyResultFields(PluginState& state)
 std::unique_ptr<juce::XmlElement> createStateXml(const PluginState& state)
 {
     auto xml = std::make_unique<juce::XmlElement>(kStateRootTag);
-    xml->setAttribute("schemaVersion", state.schemaVersion);
+    xml->setAttribute("schemaVersion", kCurrentStateVersion);
     xml->setAttribute("backendBaseUrl", state.backendBaseUrl);
     xml->setAttribute("prompt", state.prompt);
     xml->setAttribute("lyrics", state.lyrics);
@@ -50,6 +50,8 @@ std::unique_ptr<juce::XmlElement> createStateXml(const PluginState& state)
     xml->setAttribute("exportNotes", state.exportNotes);
     xml->setAttribute("lastExportPath", state.lastExportPath);
     xml->setAttribute("durationSeconds", state.durationSeconds);
+    xml->setAttribute("loopBars", state.loopBars);
+    xml->setAttribute("syncToHostBpm", state.syncToHostBpm);
     xml->setAttribute("seed", state.seed);
     xml->setAttribute("audioCoverStrength", state.audioCoverStrength);
     xml->setAttribute("modelPreset", toString(state.modelPreset));
@@ -94,6 +96,9 @@ std::unique_ptr<juce::XmlElement> createStateXml(const PluginState& state)
         xml->setAttribute("resultTakeSeed" + juce::String(static_cast<int>(index)), take.seed);
         xml->setAttribute("resultTakeDuration" + juce::String(static_cast<int>(index)),
                           take.durationSeconds);
+        xml->setAttribute("resultTakeLoopBars" + juce::String(static_cast<int>(index)), take.loopBars);
+        xml->setAttribute("resultTakeLoopSeconds" + juce::String(static_cast<int>(index)),
+                          take.loopDurationSeconds);
         xml->setAttribute("resultTakeModelPreset" + juce::String(static_cast<int>(index)),
                           toString(take.modelPreset));
         xml->setAttribute("resultTakeQualityMode" + juce::String(static_cast<int>(index)),
@@ -134,6 +139,10 @@ std::optional<PluginState> parseStateXml(const juce::XmlElement& xml)
     state.exportNotes = xml.getStringAttribute("exportNotes");
     state.lastExportPath = xml.getStringAttribute("lastExportPath");
     state.durationSeconds = xml.getIntAttribute("durationSeconds", kDefaultDurationSeconds);
+    const auto storedBars = xml.getIntAttribute("loopBars", 0);
+    state.loopBars = storedBars == 4 || storedBars == 8 || storedBars == 16 || storedBars == 32
+                         ? storedBars : 0;
+    state.syncToHostBpm = xml.getBoolAttribute("syncToHostBpm", false);
     state.seed = xml.getIntAttribute("seed", kDefaultSeed);
     state.audioCoverStrength = xml.getDoubleAttribute("audioCoverStrength", 0.6);
     state.modelPreset = modelPresetFromString(xml.getStringAttribute("modelPreset"));
@@ -189,6 +198,9 @@ std::optional<PluginState> parseStateXml(const juce::XmlElement& xml)
         take.durationSeconds =
             xml.getIntAttribute("resultTakeDuration" + juce::String(static_cast<int>(index)),
                                 kDefaultDurationSeconds);
+        take.loopBars = xml.getIntAttribute("resultTakeLoopBars" + juce::String(static_cast<int>(index)), 0);
+        take.loopDurationSeconds = xml.getDoubleAttribute(
+            "resultTakeLoopSeconds" + juce::String(static_cast<int>(index)), 0.0);
         take.modelPreset = modelPresetFromString(
             xml.getStringAttribute("resultTakeModelPreset" + juce::String(static_cast<int>(index))));
         take.qualityMode = qualityModeFromString(

@@ -2,6 +2,8 @@
 
 #include "PluginEditor.h"
 
+#include <cmath>
+
 namespace acestep::vst3
 {
 namespace
@@ -82,6 +84,26 @@ void ACEStepVST3AudioProcessor::processBlock(juce::AudioBuffer<float>& buffer,
                                              juce::MidiBuffer& midiMessages)
 {
     juce::ignoreUnused(midiMessages);
+    // JUCE playhead data must be queried on the audio thread, never in the editor.
+    if (auto* playHead = getPlayHead())
+    {
+        if (const auto position = playHead->getPosition())
+        {
+            if (const auto bpm = position->getBpm())
+            {
+                if (std::isfinite(*bpm) && *bpm > 0.0)
+                    hostBpm_.store(*bpm, std::memory_order_relaxed);
+            }
+            if (const auto signature = position->getTimeSignature())
+            {
+                if (signature->numerator > 0 && signature->denominator > 0)
+                {
+                    hostTimeSigNumerator_.store(signature->numerator, std::memory_order_relaxed);
+                    hostTimeSigDenominator_.store(signature->denominator, std::memory_order_relaxed);
+                }
+            }
+        }
+    }
     buffer.clear();
     preview_.render(buffer);
 }
@@ -171,6 +193,13 @@ void ACEStepVST3AudioProcessor::setStateInformation(const void* data, int sizeIn
             syncPreviewFromState();
         }
     }
+}
+
+ACEStepVST3AudioProcessor::HostTiming ACEStepVST3AudioProcessor::getHostTiming() const noexcept
+{
+    return {hostBpm_.load(std::memory_order_relaxed),
+            hostTimeSigNumerator_.load(std::memory_order_relaxed),
+            hostTimeSigDenominator_.load(std::memory_order_relaxed)};
 }
 
 const PluginState& ACEStepVST3AudioProcessor::getState() const noexcept
@@ -370,6 +399,13 @@ void ACEStepVST3AudioProcessor::requestLoRAScale(double scale)
 
 void ACEStepVST3AudioProcessor::requestGeneration()
 {
+    if (state_.jobStatus == JobStatus::submitting
+        || state_.jobStatus == JobStatus::queuedOrRunning)
+    {
+        state_.errorMessage = "Wait for the current render to finish.";
+        return;
+    }
+
     if (state_.workflowMode == WorkflowMode::text && state_.prompt.trim().isEmpty())
     {
         state_.jobStatus = JobStatus::failed;
@@ -421,6 +457,66 @@ void ACEStepVST3AudioProcessor::requestGeneration()
         state_.transportState = TransportState::failed;
         state_.progressText = {};
         state_.errorMessage = "Custom Conditioning mode requires audio semantic codes.";
+        refreshSessionFlags(state_);
+        return;
+    }
+
+    // Snapshot musical timing at Generate; editing the project tempo during a
+    // long GPU render must not change the intended length of the exported loop.
+    state_.generationBpm = 0;
+    state_.generationTimeSignature = {};
+    state_.generationLoopBars = 0;
+    state_.generationLoopDurationSeconds = 0.0;
+
+    juce::String timingError;
+    if (state_.loopBars > 0 && !state_.syncToHostBpm)
+    {
+        timingError = "Enable Sync BPM to DAW to generate a bar-length loop.";
+    }
+    else if (state_.syncToHostBpm)
+    {
+        const auto timing = getHostTiming();
+        if (!std::isfinite(timing.bpm) || timing.bpm < 30.0 || timing.bpm > 300.0)
+        {
+            timingError = "Ableton BPM unavailable or outside ACE-Step's 30-300 range. "
+                          "Start playback or choose a seconds duration with BPM sync off.";
+        }
+        else
+        {
+            state_.generationBpm = juce::roundToInt(timing.bpm);
+            // ACE-Step documents only 2/4, 3/4, 4/4 and 6/8. Unsupported
+            // signatures still determine the loop length, but are not sent.
+            if ((timing.denominator == 4 && (timing.numerator == 2
+                || timing.numerator == 3 || timing.numerator == 4))
+                || (timing.numerator == 6 && timing.denominator == 8))
+            {
+                state_.generationTimeSignature = juce::String(timing.numerator);
+            }
+
+            if (state_.loopBars > 0)
+            {
+                const auto quarterNotesPerBar =
+                    static_cast<double>(timing.numerator) * 4.0 / timing.denominator;
+                const auto seconds = 60.0 * state_.loopBars * quarterNotesPerBar / timing.bpm;
+                if (!std::isfinite(seconds) || seconds <= 0.0 || seconds > 600.0)
+                {
+                    timingError = "The selected loop is outside ACE-Step's 600-second limit.";
+                }
+                else
+                {
+                    state_.generationLoopBars = state_.loopBars;
+                    state_.generationLoopDurationSeconds = seconds;
+                }
+            }
+        }
+    }
+
+    if (timingError.isNotEmpty())
+    {
+        state_.jobStatus = JobStatus::failed;
+        state_.transportState = TransportState::failed;
+        state_.progressText = {};
+        state_.errorMessage = timingError;
         refreshSessionFlags(state_);
         return;
     }
@@ -633,12 +729,16 @@ void ACEStepVST3AudioProcessor::schedulePreviewDownload(int slotIndex)
 
     const auto baseUrl = state_.backendBaseUrl;
     const auto remoteFileUrl = state_.resultFileUrls[static_cast<size_t>(slotIndex)];
+    const auto& take = state_.resultTakes[static_cast<size_t>(slotIndex)];
+    const auto loopSeconds = take.loopDurationSeconds;
+    const auto loopBars = take.loopBars;
     backendThreadPool_.addJob(std::function<juce::ThreadPoolJob::JobStatus()>(
-        [this, baseUrl, remoteFileUrl, slotIndex]() {
+        [this, baseUrl, remoteFileUrl, slotIndex, loopSeconds, loopBars]() {
             BackendTaskResult taskResult;
             taskResult.kind = BackendTaskKind::downloadPreview;
             taskResult.previewDownload =
-                backendClient_.downloadPreviewFile(baseUrl, remoteFileUrl, slotIndex);
+                backendClient_.downloadPreviewFile(baseUrl, remoteFileUrl, slotIndex,
+                                                   loopSeconds, loopBars);
             const juce::ScopedLock lock(backendTaskLock_);
             completedBackendTask_ = std::move(taskResult);
             backendTaskRunning_.store(false);
@@ -855,7 +955,14 @@ void ACEStepVST3AudioProcessor::applyCompletedTask(const BackendTaskResult& task
                 take.statusText = "Rendered";
                 take.compareGroup = compareGroup;
                 take.seed = state_.seed;
-                take.durationSeconds = state_.durationSeconds;
+                take.durationSeconds = state_.generationLoopDurationSeconds > 0.0
+                                           ? juce::roundToInt(juce::jmax(10.0, state_.generationLoopDurationSeconds))
+                                           : state_.durationSeconds;
+                take.loopBars = state_.generationLoopBars;
+                take.loopDurationSeconds = state_.generationLoopDurationSeconds;
+                if (take.loopBars > 0)
+                    take.slotLabel += " // " + juce::String(take.loopBars) + " bars @ "
+                                      + juce::String(state_.generationBpm) + " BPM";
                 take.modelPreset = state_.modelPreset;
                 take.qualityMode = state_.qualityMode;
                 take.updatedAtMs = juce::Time::currentTimeMillis();

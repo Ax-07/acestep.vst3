@@ -41,6 +41,14 @@ public:
     void getStateInformation(juce::MemoryBlock& destData) override;
     void setStateInformation(const void* data, int sizeInBytes) override;
 
+    struct HostTiming final
+    {
+        double bpm = 0.0;
+        int numerator = 4;
+        int denominator = 4;
+    };
+
+    [[nodiscard]] HostTiming getHostTiming() const noexcept;
     const PluginState& getState() const noexcept;
     PluginState& getMutableState() noexcept;
     [[nodiscard]] bool loadPreviewFile(const juce::File& file);
@@ -103,6 +111,10 @@ private:
     void syncPreviewFromState();
 
     PluginState state_;
+    // Written exclusively by processBlock and sampled by the UI/generation thread.
+    std::atomic<double> hostBpm_ {0.0};
+    std::atomic<int> hostTimeSigNumerator_ {4};
+    std::atomic<int> hostTimeSigDenominator_ {4};
     PluginPreview preview_;
     PluginBackendClient backendClient_;
     juce::ThreadPool backendThreadPool_ {1};

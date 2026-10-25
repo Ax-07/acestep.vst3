@@ -23,6 +23,35 @@ selection in the DAW project. Generated audio is previewed in the plugin; it is
 The label says WAV because the plugin requests WAV output. The downloaded file
 keeps the audio format indicated by the backend.
 
+## BPM sync and bar-length loops
+
+In **Compose / Engine**, select **Sync BPM to DAW** to read Live's tempo and
+time signature (via JUCE's host playhead). The host value appears under the
+Lyrics field. The setting is opt-in so older sessions and standalone uses keep
+working without a host BPM.
+
+Choose **Length** in seconds (10 / 30 / 60 / 120) or select **4 / 8 / 16 /
+32 bars (DAW BPM)**. Selecting bars automatically enables BPM sync.
+The BPM and musical length are captured when **Generate** is pressed and
+are sent to ACE-Step's Python `/release_task` API as `bpm`,
+`time_signature` (for supported signatures), and `audio_duration`.
+
+- Duration calculation: `bars * numerator * (4 / denominator) * 60 / BPM`.
+  For example at **128 BPM in 4/4**, 4 / 8 / 16 / 32 bars mean
+  **7.5 / 15 / 30 / 60 seconds**.
+- ACE-Step requires **at least 10 seconds** of generation. For short
+  loops, the plugin requests 10 seconds, then writes a separate WAV
+  matching the selected number of bars exactly (at the source sample rate).
+- In bar mode, the original full-length file **and** the exact-length
+  `*-4bars.wav`, `*-8bars.wav`, etc. are kept in the exports folder.
+  Preview and **Drag WAV to Track** use the bar-length file.
+- A small 5 ms fade is applied at the start and end of a bar-length export
+  to reduce clicks. **The model is not guaranteed to compose a seamless
+  musical loop**: you may still need Warp, crossfades, or editing in Ableton.
+- If the host does not provide tempo, start Ableton's transport. ACE-Step
+  supports only BPM values in the 30-300 range. Unsupported time signatures
+  still determine the WAV length but are not supplied as metadata to ACE-Step.
+
 ## Saved audio and export folder
 
 Downloaded generations are saved permanently, by default, to:

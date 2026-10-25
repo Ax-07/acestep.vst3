@@ -1,5 +1,7 @@
 #include "PluginBackendClient.h"
 
+#include <cmath>
+
 namespace acestep::vst3
 {
 namespace
@@ -181,6 +183,89 @@ juce::String chooseFileExtension(const juce::String& remoteFileUrl)
     return extension;
 }
 
+// Export a bar-length WAV without discarding the untouched generation. ACE-Step's
+// minimum request is 10s, but four bars of house/electro may be shorter.
+bool writeBarLengthWav(const juce::File& sourceFile,
+                       const juce::File& loopFile,
+                       double durationSeconds,
+                       juce::String& errorMessage)
+{
+    if (!std::isfinite(durationSeconds) || durationSeconds <= 0.0)
+    {
+        errorMessage = "Invalid target loop length.";
+        return false;
+    }
+
+    juce::AudioFormatManager formats;
+    formats.registerBasicFormats();
+    std::unique_ptr<juce::AudioFormatReader> reader(formats.createReaderFor(sourceFile));
+    if (reader == nullptr || reader->sampleRate <= 0.0 || reader->numChannels == 0)
+    {
+        errorMessage = "Could not read the original audio for loop export.";
+        return false;
+    }
+
+    auto output = loopFile.createOutputStream();
+    if (output == nullptr || !output->openedOk())
+    {
+        errorMessage = "Could not create the bar-length WAV.";
+        return false;
+    }
+
+    juce::WavAudioFormat wav;
+    std::unique_ptr<juce::AudioFormatWriter> writer(
+        wav.createWriterFor(output.get(), reader->sampleRate, reader->numChannels, 24, {}, 0));
+    if (writer == nullptr)
+    {
+        errorMessage = "Could not initialise the bar-length WAV writer.";
+        return false;
+    }
+    output.release();  // The writer now owns and closes the output stream.
+
+    const auto totalSamples =
+        static_cast<juce::int64>(std::llround(durationSeconds * reader->sampleRate));
+    const auto fadeSamples = juce::jmax<juce::int64>(
+        1, static_cast<juce::int64>(std::llround(reader->sampleRate * 0.005)));
+    constexpr int kChunkSamples = 4096;
+    juce::AudioBuffer<float> samples(static_cast<int>(reader->numChannels), kChunkSamples);
+
+    for (juce::int64 offset = 0; offset < totalSamples; offset += kChunkSamples)
+    {
+        const auto chunk = static_cast<int>(juce::jmin<juce::int64>(
+            kChunkSamples, totalSamples - offset));
+        samples.clear();
+        if (!reader->read(&samples, 0, chunk, offset, true, true))
+        {
+            errorMessage = "Could not read the generated WAV for loop export.";
+            return false;
+        }
+
+        // Small boundary fades reduce clicks; they do not guarantee a musically
+        // seamless loop, which may still need editing/crossfades in Ableton.
+        for (int sample = 0; sample < chunk; ++sample)
+        {
+            const auto absoluteSample = offset + sample;
+            const auto fadeIn = static_cast<float>(juce::jmin<juce::int64>(
+                absoluteSample, fadeSamples)) / static_cast<float>(fadeSamples);
+            const auto fadeOut = static_cast<float>(juce::jmin<juce::int64>(
+                totalSamples - absoluteSample - 1, fadeSamples))
+                / static_cast<float>(fadeSamples);
+            const auto gain = juce::jmin(fadeIn, fadeOut);
+            for (int channel = 0; channel < samples.getNumChannels(); ++channel)
+                samples.setSample(channel, sample, samples.getSample(channel, sample) * gain);
+        }
+
+        if (!writer->writeFromAudioSampleBuffer(samples, 0, chunk))
+        {
+            errorMessage = "Could not write the bar-length WAV.";
+            return false;
+        }
+    }
+
+    writer.reset();  // Finalise WAV headers before Ableton reads the file.
+    return true;
+}
+
 PluginLoRAStatusResult parseLoRAStatusResponse(const juce::var& response)
 {
     PluginLoRAStatusResult result;
@@ -265,7 +350,14 @@ PluginGenerationStartResult PluginBackendClient::startGeneration(const PluginSta
     payload->setProperty("lyrics", state.lyrics);
     payload->setProperty("task_type",
                          state.workflowMode == WorkflowMode::coverRemix ? "cover" : "text2music");
-    payload->setProperty("audio_duration", state.durationSeconds);
+    payload->setProperty("audio_duration",
+                         state.generationLoopDurationSeconds > 0.0
+                             ? juce::jmax(10.0, state.generationLoopDurationSeconds)
+                             : static_cast<double>(state.durationSeconds));
+    if (state.generationBpm > 0)
+        payload->setProperty("bpm", state.generationBpm);
+    if (state.generationTimeSignature.isNotEmpty())
+        payload->setProperty("time_signature", state.generationTimeSignature);
     payload->setProperty("batch_size", 1);
     payload->setProperty("audio_format", "wav");
     payload->setProperty("thinking", false);
@@ -438,7 +530,9 @@ PluginGenerationPollResult PluginBackendClient::pollGeneration(const juce::Strin
 
 PluginPreviewDownloadResult PluginBackendClient::downloadPreviewFile(const juce::String& baseUrl,
                                                                      const juce::String& remoteFileUrl,
-                                                                     int slotIndex) const
+                                                                     int slotIndex,
+                                                                     double loopDurationSeconds,
+                                                                     int loopBars) const
 {
     PluginPreviewDownloadResult result;
     result.slotIndex = slotIndex;
@@ -482,19 +576,37 @@ PluginPreviewDownloadResult PluginBackendClient::downloadPreviewFile(const juce:
     auto previewFile = exportsDirectory.getNonexistentChildFile(filePrefix,
                                                                 chooseFileExtension(remoteFileUrl),
                                                                 false);
-    juce::FileOutputStream output(previewFile);
-    if (!output.openedOk())
     {
-        result.errorMessage = "Could not create the audio export file.";
-        return result;
+        juce::FileOutputStream output(previewFile);
+        if (!output.openedOk())
+        {
+            result.errorMessage = "Could not create the audio export file.";
+            return result;
+        }
+
+        const auto bytesWritten = output.writeFromInputStream(*stream, -1);
+        output.flush();
+        if (bytesWritten <= 0 || output.getStatus().failed())
+        {
+            result.errorMessage = "Could not save the generated audio file.";
+            return result;
+        }
     }
 
-    const auto bytesWritten = output.writeFromInputStream(*stream, -1);
-    output.flush();
-    if (bytesWritten <= 0 || output.getStatus().failed())
+    // The original remains available for further production/editing. The
+    // shortened, bar-exact derivative is the one previewed and dragged to Live.
+    if (loopBars > 0 && loopDurationSeconds > 0.0)
     {
-        result.errorMessage = "Could not save the generated audio file.";
-        return result;
+        const auto loopFile = exportsDirectory.getNonexistentChildFile(
+            filePrefix + "-" + juce::String(loopBars) + "bars", ".wav", false);
+        juce::String loopError;
+        if (!writeBarLengthWav(previewFile, loopFile, loopDurationSeconds, loopError))
+        {
+            result.errorMessage = loopError + " Original saved at: "
+                                  + previewFile.getFullPathName();
+            return result;
+        }
+        previewFile = loopFile;
     }
 
     result.succeeded = true;

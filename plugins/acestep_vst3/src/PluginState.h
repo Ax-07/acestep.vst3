@@ -20,6 +20,8 @@ struct PluginResultTake final
     juce::String compareGroup;
     int seed = kDefaultSeed;
     int durationSeconds = kDefaultDurationSeconds;
+    int loopBars = 0;
+    double loopDurationSeconds = 0.0;
     ModelPreset modelPreset = ModelPreset::turbo;
     QualityMode qualityMode = QualityMode::balanced;
     juce::int64 updatedAtMs = 0;
@@ -50,7 +52,15 @@ struct PluginState final
     juce::String exportNotes;
     juce::String lastExportPath;
     int durationSeconds = kDefaultDurationSeconds;
+    int loopBars = 0;  // 0 = fixed seconds; otherwise 4, 8, 16 or 32 bars.
+    bool syncToHostBpm = false;
     int seed = kDefaultSeed;
+    // The following fields snapshot Ableton's timing when Generate is pressed.
+    // They are per-render data, not persistent user preferences.
+    int generationBpm = 0;
+    juce::String generationTimeSignature;
+    int generationLoopBars = 0;
+    double generationLoopDurationSeconds = 0.0;
     double audioCoverStrength = 0.6;
     ModelPreset modelPreset = ModelPreset::turbo;
     QualityMode qualityMode = QualityMode::balanced;
