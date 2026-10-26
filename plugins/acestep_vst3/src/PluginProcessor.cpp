@@ -391,6 +391,14 @@ void ACEStepVST3AudioProcessor::clearPreviewFile()
 
 void ACEStepVST3AudioProcessor::playPreview()
 {
+    // A proposed loop is temporary: the normal Play button must always
+    // restore the stored WAV, rather than silently replay the source crop.
+    if (preview_.isAuditioningSubsection())
+    {
+        if (state_.previewFilePath.isEmpty()
+            || !loadPreviewFile(juce::File(state_.previewFilePath)))
+            return;
+    }
     if (!hasPreviewFile())
     {
         state_.errorMessage = "Load a preview file before playing it.";
@@ -399,6 +407,44 @@ void ACEStepVST3AudioProcessor::playPreview()
 
     state_.errorMessage = {};
     preview_.play();
+}
+
+bool ACEStepVST3AudioProcessor::auditionAdjustedLoop(double offsetMilliseconds,
+                                                     juce::String& error)
+{
+    if (!std::isfinite(offsetMilliseconds) || std::abs(offsetMilliseconds) > 500.0)
+    {
+        error = "Crop shift must be within +/- 500 ms.";
+        state_.errorMessage = error;
+        return false;
+    }
+    const auto slot = state_.selectedResultSlot;
+    if (slot < 0 || slot >= kResultSlotCount)
+    {
+        error = "Select a generated take first.";
+        state_.errorMessage = error;
+        return false;
+    }
+
+    const auto& take = state_.resultTakes[static_cast<size_t>(slot)];
+    const juce::File source(take.originalFilePath);
+    if (take.loopBars <= 0 || !source.existsAsFile()
+        || take.loopEndSeconds <= take.loopStartSeconds)
+    {
+        error = "Original WAV and an exact bar selection are required.";
+        state_.errorMessage = error;
+        return false;
+    }
+
+    const auto start = take.loopStartSeconds + offsetMilliseconds / 1000.0;
+    const auto duration = take.loopEndSeconds - take.loopStartSeconds;
+    if (!preview_.auditionSubsection(source, start, duration, error))
+    {
+        state_.errorMessage = error;
+        return false;
+    }
+    state_.errorMessage = {};
+    return true;
 }
 
 void ACEStepVST3AudioProcessor::stopPreview()
@@ -419,6 +465,11 @@ bool ACEStepVST3AudioProcessor::hasPreviewFile() const
 bool ACEStepVST3AudioProcessor::isPreviewPlaying() const
 {
     return preview_.isPlaying();
+}
+
+bool ACEStepVST3AudioProcessor::isAuditioningAdjustedLoop() const
+{
+    return preview_.isAuditioningSubsection();
 }
 
 bool ACEStepVST3AudioProcessor::exportSessionSummary(const juce::File& file)

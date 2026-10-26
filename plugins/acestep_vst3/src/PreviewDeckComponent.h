@@ -1,6 +1,7 @@
 #pragma once
 
 #include <JuceHeader.h>
+#include <functional>
 #include <vector>
 
 #include "LoopPhaseAnalysis.h"
@@ -25,7 +26,9 @@ public:
     juce::TextButton& clearButton() noexcept;
     juce::TextButton& revealButton() noexcept;
     juce::TextButton& exportAlignedButton() noexcept;
+    juce::TextButton& auditionShiftButton() noexcept;
     [[nodiscard]] double cropShiftMilliseconds() const noexcept;
+    void setOnShiftChanged(std::function<void()> callback);
     void setPreviewSummary(const juce::String& summary);
     // Both lanes share the original file's time axis. The extracted loop is
     // painted directly beneath its exact source selection; the third lane
@@ -76,8 +79,10 @@ private:
     juce::Slider shiftSlider_;
     juce::TextButton resetShiftButton_ {"Reset shift"};
     juce::TextButton autoAlignButton_ {"Auto Align"};
+    juce::TextButton auditionShiftButton_ {"Audition shift"};
     juce::TextButton exportAlignedButton_ {"Export adjusted WAV"};
     juce::Label phaseLabel_;
+    std::function<void()> onShiftChanged_;
     juce::TextButton loadButton_ {"Load Preview"};
     juce::TextButton playButton_ {"Play"};
     juce::TextButton stopButton_ {"Stop"};

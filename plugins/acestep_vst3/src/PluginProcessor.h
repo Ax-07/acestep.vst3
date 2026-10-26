@@ -54,10 +54,12 @@ public:
     [[nodiscard]] bool loadPreviewFile(const juce::File& file);
     void clearPreviewFile();
     void playPreview();
+    [[nodiscard]] bool auditionAdjustedLoop(double offsetMilliseconds, juce::String& error);
     void stopPreview();
     void revealPreviewFile() const;
     [[nodiscard]] bool hasPreviewFile() const;
     [[nodiscard]] bool isPreviewPlaying() const;
+    [[nodiscard]] bool isAuditioningAdjustedLoop() const;
     [[nodiscard]] bool exportSessionSummary(const juce::File& file);
     // A user-confirmed, non-destructive re-cut from the saved original WAV.
     // Never shifts already-rendered audio or overwrites an existing export.

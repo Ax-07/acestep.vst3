@@ -80,7 +80,16 @@ are sent to ACE-Step's Python `/release_task` API as `bpm`,
   and previous loop files remain untouched; the new WAV becomes the selected
   take's Preview/Drag source. This feature works only for bar-length takes
   where the original WAV and exact crop metadata are available. Seconds mode
-  is unchanged, and no phase correction is enabled by default.
+  is unchanged, and no phase correction is enabled by default. Inferred
+  selections recovered from old projects remain visual-only.
+  **Audition shift** streams the blue proposed source selection directly from
+  the original file, repeating just that subsection in the instrument output.
+  No interim audio file is created. The normal Preview **Stop** button ends
+  the audition; the normal **Play** button restores and plays the saved WAV.
+  Moving Crop shift or pressing Auto Align while auditioning stops the old
+  audition so it cannot silently keep playing an outdated selection: press
+  Audition shift again to hear the latest bounds. The Ableton instrument track
+  must be audible, and the original WAV must still be present on disk.
   Older `*-4bars.wav` files with a matching original beside them can also
   display an inferred crop range, clearly labelled as inferred.
 - **Anti-click fades (5 ms)** is optional and **off by default** for bars,

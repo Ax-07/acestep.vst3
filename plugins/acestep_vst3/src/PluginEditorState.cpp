@@ -207,6 +207,22 @@ void ACEStepVST3AudioProcessorEditor::configureSelectors()
     previewDeck_.stopButton().onClick = [this] { stopPreviewFile(); };
     previewDeck_.clearButton().onClick = [this] { clearPreviewFile(); };
     previewDeck_.revealButton().onClick = [this] { revealPreviewFile(); };
+    previewDeck_.setOnShiftChanged([this] {
+        // A playing source crop becomes stale when the user moves its bounds.
+        // Stop it; the next Audition click will load the new proposed slice.
+        if (processor_.isAuditioningAdjustedLoop() && processor_.isPreviewPlaying())
+        {
+            processor_.stopPreview();
+            refreshStatusViews();
+        }
+    });
+    previewDeck_.auditionShiftButton().onClick = [this] {
+        juce::String error;
+        if (!processor_.auditionAdjustedLoop(previewDeck_.cropShiftMilliseconds(), error))
+            juce::AlertWindow::showMessageBoxAsync(juce::AlertWindow::WarningIcon,
+                                                   "ACE-Step proposed loop audition", error);
+        refreshStatusViews();
+    };
     previewDeck_.exportAlignedButton().onClick = [this] {
         juce::String error;
         if (!processor_.exportAdjustedLoop(previewDeck_.cropShiftMilliseconds(), error))
@@ -484,6 +500,10 @@ void ACEStepVST3AudioProcessorEditor::refreshStatusViews()
     if (processor_.isPreviewPlaying())
     {
         previewText += "\nPlayback // active";
+    }
+    if (processor_.isAuditioningAdjustedLoop())
+    {
+        previewText += "\nAUDITION // source crop in memory; saved WAV unchanged";
     }
     previewDeck_.setPreviewSummary(previewText);
 

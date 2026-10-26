@@ -35,7 +35,12 @@ PreviewDeckComponent::PreviewDeckComponent()
     shiftSlider_.setTextValueSuffix(" ms");
     shiftSlider_.setDoubleClickReturnValue(true, 0.0);
     shiftSlider_.setTooltip("Preview the source crop shifted by milliseconds; original WAV and current export stay unchanged.");
-    shiftSlider_.onValueChange = [this] { updateAlignmentControls(); repaint(); };
+    shiftSlider_.onValueChange = [this] {
+        if (onShiftChanged_)
+            onShiftChanged_();
+        updateAlignmentControls();
+        repaint();
+    };
     shiftLabel_.setColour(juce::Label::textColourId, v2::kLabelMuted);
     shiftLabel_.setText("Crop shift", juce::dontSendNotification);
     phaseLabel_.setColour(juce::Label::textColourId, v2::kAccentAmber);
@@ -51,6 +56,7 @@ PreviewDeckComponent::PreviewDeckComponent()
                 selectionEndSeconds_, originalThumbnail_.getTotalLength()))
             shiftSlider_.setValue(*proposed); // No export or audio modification.
     };
+    auditionShiftButton_.setTooltip("Listen to the blue proposed source slice in a loop, without writing a WAV. Stop or press Play to return to the saved WAV.");
     exportAlignedButton_.setTooltip("Write a NEW adjusted WAV and use it for this take. The original and previous exports are preserved.");
     addAndMakeVisible(zoomLabel_);
     addAndMakeVisible(zoomBox_);
@@ -59,6 +65,7 @@ PreviewDeckComponent::PreviewDeckComponent()
                        static_cast<juce::Component*>(&shiftSlider_),
                        static_cast<juce::Component*>(&resetShiftButton_),
                        static_cast<juce::Component*>(&autoAlignButton_),
+                       static_cast<juce::Component*>(&auditionShiftButton_),
                        static_cast<juce::Component*>(&exportAlignedButton_),
                        static_cast<juce::Component*>(&phaseLabel_)})
         addAndMakeVisible(*item);
@@ -110,11 +117,13 @@ void PreviewDeckComponent::resized()
     area.removeFromTop(6);
     auto adjustment = area.removeFromTop(32);
     shiftLabel_.setBounds(adjustment.removeFromLeft(80));
-    shiftSlider_.setBounds(adjustment.removeFromLeft(320));
+    shiftSlider_.setBounds(adjustment.removeFromLeft(278));
     adjustment.removeFromLeft(8);
-    resetShiftButton_.setBounds(adjustment.removeFromLeft(105));
+    resetShiftButton_.setBounds(adjustment.removeFromLeft(100));
     adjustment.removeFromLeft(8);
-    autoAlignButton_.setBounds(adjustment.removeFromLeft(118));
+    autoAlignButton_.setBounds(adjustment.removeFromLeft(110));
+    adjustment.removeFromLeft(8);
+    auditionShiftButton_.setBounds(adjustment.removeFromLeft(145));
     adjustment.removeFromLeft(8);
     exportAlignedButton_.setBounds(adjustment.removeFromLeft(185));
     area.removeFromTop(3);
@@ -284,6 +293,7 @@ void PreviewDeckComponent::rebuildTransientMarkers()
 void PreviewDeckComponent::updateAlignmentControls()
 {
     const auto validSelection = selectionEndSeconds_ > selectionStartSeconds_
+        && !inferredSelection_ // Legacy file visualisation is not trusted for editing.
         && originalFilePath_ != loopFilePath_
         && juce::File(originalFilePath_).existsAsFile()
         && juce::File(loopFilePath_).existsAsFile();
@@ -293,6 +303,8 @@ void PreviewDeckComponent::updateAlignmentControls()
     const auto shiftedEnd = selectionEndSeconds_ + shiftSlider_.getValue() / 1000.0;
     exportAlignedButton_.setEnabled(validSelection && shiftSlider_.getValue() != 0.0
                                     && shiftedStart >= 0.0
+                                    && shiftedEnd <= originalThumbnail_.getTotalLength() + 0.001);
+    auditionShiftButton_.setEnabled(validSelection && shiftedStart >= 0.0
                                     && shiftedEnd <= originalThumbnail_.getTotalLength() + 0.001);
 
     auto message = juce::String("Attacks: awaiting waveform");
@@ -556,7 +568,12 @@ juce::TextButton& PreviewDeckComponent::stopButton() noexcept { return stopButto
 juce::TextButton& PreviewDeckComponent::clearButton() noexcept { return clearButton_; }
 juce::TextButton& PreviewDeckComponent::revealButton() noexcept { return revealButton_; }
 juce::TextButton& PreviewDeckComponent::exportAlignedButton() noexcept { return exportAlignedButton_; }
+juce::TextButton& PreviewDeckComponent::auditionShiftButton() noexcept { return auditionShiftButton_; }
 double PreviewDeckComponent::cropShiftMilliseconds() const noexcept { return shiftSlider_.getValue(); }
+void PreviewDeckComponent::setOnShiftChanged(std::function<void()> callback)
+{
+    onShiftChanged_ = std::move(callback);
+}
 
 void PreviewDeckComponent::setPreviewSummary(const juce::String& summary)
 {
