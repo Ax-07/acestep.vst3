@@ -38,6 +38,7 @@ target_sources(
         src/PluginBackendClient.cpp
         src/CompositionLaneComponent.cpp
         src/PluginEditor.cpp
+        src/PromptDesignerComponent.cpp
         src/PluginEditorState.cpp
         src/PluginEditorPreview.cpp
         src/PluginEnums.cpp

@@ -8,6 +8,7 @@
 
 #include "PluginConfig.h"
 #include "PluginEnums.h"
+#include "PromptBuilder.h"
 
 namespace acestep::vst3
 {
@@ -48,6 +49,8 @@ struct PluginState final
     int schemaVersion = kCurrentStateVersion;
     juce::String backendBaseUrl = kDefaultBackendBaseUrl;
     juce::String prompt;
+    bool usePromptBuilder = true; // New sessions: selectors. Legacy saved sessions: manual.
+    promptbuilder::Selection promptSelection;
     juce::String lyrics;
     juce::String referenceAudioPath;
     juce::String sourceAudioPath;
@@ -95,6 +98,14 @@ struct PluginState final
     juce::String previewFilePath;
     juce::String previewDisplayName;
 };
+
+[[nodiscard]] inline juce::String activePrompt(const PluginState& state)
+{
+    if (!state.usePromptBuilder)
+        return state.prompt;
+    const auto generated = promptbuilder::build(state.promptSelection);
+    return juce::String::fromUTF8(generated.c_str());
+}
 
 [[nodiscard]] std::unique_ptr<juce::XmlElement> createStateXml(const PluginState& state);
 [[nodiscard]] std::optional<PluginState> parseStateXml(const juce::XmlElement& xml);

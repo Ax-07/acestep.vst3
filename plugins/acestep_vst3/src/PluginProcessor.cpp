@@ -12,7 +12,7 @@ namespace
 {
 juce::String deriveSessionName(const PluginState& state)
 {
-    const auto prompt = state.prompt.trim();
+    const auto prompt = activePrompt(state).trim();
     if (prompt.isEmpty())
     {
         return "Untitled Session";
@@ -486,7 +486,7 @@ bool ACEStepVST3AudioProcessor::exportSessionSummary(const juce::File& file)
     summary << "Project: " << printableField(state_.session.projectName, "Untitled Project") << "\n";
     summary << "Session: " << printableField(state_.session.sessionName, "Untitled Session") << "\n";
     summary << "Mode: " << printableField(toString(state_.workflowMode)) << "\n";
-    summary << "Prompt: " << printableField(state_.prompt) << "\n";
+    summary << "Prompt: " << printableField(activePrompt(state_)) << "\n";
     summary << "Lyrics: " << printableField(state_.lyrics) << "\n";
     summary << "Sections: " << printableField(state_.sectionPlan) << "\n";
     summary << "Chords: " << printableField(state_.chordProgression) << "\n";
@@ -617,7 +617,7 @@ void ACEStepVST3AudioProcessor::requestGeneration()
         return;
     }
 
-    if (state_.workflowMode == WorkflowMode::text && state_.prompt.trim().isEmpty())
+    if (state_.workflowMode == WorkflowMode::text && activePrompt(state_).trim().isEmpty())
     {
         state_.jobStatus = JobStatus::failed;
         state_.transportState = TransportState::failed;

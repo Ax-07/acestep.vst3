@@ -62,6 +62,8 @@ SynthPanelComponent::SynthPanelComponent()
     useLoRAToggle_.setButtonText("LoRA Active");
 
     promptEditor_.setMultiLine(true);
+    promptEditor_.setTooltip("In Selectors mode this is the exact prompt sent to ACE-Step. "
+                             "Switch to Free Text to write or paste your own prompt.");
     lyricsEditor_.setMultiLine(true);
     conditioningCodesEditor_.setMultiLine(true);
     loraStatusLabel_.setColour(juce::Label::textColourId, v2::kAccentMint);
@@ -201,6 +203,12 @@ void SynthPanelComponent::resized()
 
 juce::TextEditor& SynthPanelComponent::backendUrlEditor() noexcept { return backendUrlEditor_; }
 juce::TextEditor& SynthPanelComponent::promptEditor() noexcept { return promptEditor_; }
+void SynthPanelComponent::setPromptPreviewMode(bool enabled)
+{
+    promptLabel_.setText(enabled ? "Generated Prompt // read-only" : "Free Text Prompt",
+                         juce::dontSendNotification);
+    promptEditor_.setReadOnly(enabled);
+}
 juce::TextEditor& SynthPanelComponent::lyricsEditor() noexcept { return lyricsEditor_; }
 juce::TextEditor& SynthPanelComponent::referenceAudioEditor() noexcept { return referenceAudioEditor_; }
 juce::TextEditor& SynthPanelComponent::sourceAudioEditor() noexcept { return sourceAudioEditor_; }

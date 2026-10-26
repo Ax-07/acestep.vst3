@@ -9,6 +9,30 @@ The editor stores backend URL, prompt/lyrics, generation parameters, and result
 selection in the DAW project. Generated audio is previewed in the plugin; it is
 **not automatically inserted** as a timeline clip.
 
+## Prompt Designer (no typing required)
+
+The new **Prompt Designer** at the top of the plugin creates a music prompt
+from eight drop-down menus: **Style**, **Mood**, **Drums**, **Bass**, **Lead
+Instrument**, **Texture / Atmosphere**, **Energy**, and **Voice**. Select multiple
+instrument roles at once (e.g. an acid bassline, arpeggiated synth and spacey
+pads). The combinations build one English-language prompt automatically;
+changing any selector updates the read-only **Generated Prompt** preview in
+**Compose / Engine** immediately. Click **Render** to send it to ACE-Step.
+
+- **Prompt Mode: Selectors // automatic** is the default for *new* sessions,
+  initially set to **Electro + instrumental/no vocals**. All other categories
+  are optional ("Any"). The controls do not override the independent Ableton
+  BPM sync, loop length, seed, model, quality or lyric controls.
+- Switch **Prompt Mode** to **Free Text // manual** to write an unrestricted
+  prompt in Compose / Engine. It preserves any manual prompt you had before
+  switching to the designer, and can be switched back at any time.
+- Existing Ableton projects without Prompt Designer data open in **Free Text**
+  mode automatically so their earlier saved prompts stay unchanged.
+- The chosen mode and all eight selections are saved with the project, and
+  the actual generated prompt is included in the session export summary.
+- These are descriptive prompts, not hard constraints: ACE-Step can still
+  interpret instruments, mood and vocals differently from the selections.
+
 ## Ableton workflow
 
 1. Launch the Python ACE-Step 1.5 API server and open the VST3 in Ableton.

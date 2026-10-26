@@ -14,6 +14,7 @@ public:
 
     juce::TextEditor& backendUrlEditor() noexcept;
     juce::TextEditor& promptEditor() noexcept;
+    void setPromptPreviewMode(bool enabled);
     juce::TextEditor& lyricsEditor() noexcept;
     juce::TextEditor& referenceAudioEditor() noexcept;
     juce::TextEditor& sourceAudioEditor() noexcept;

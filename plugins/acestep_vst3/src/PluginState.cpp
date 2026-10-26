@@ -41,6 +41,15 @@ std::unique_ptr<juce::XmlElement> createStateXml(const PluginState& state)
     xml->setAttribute("schemaVersion", kCurrentStateVersion);
     xml->setAttribute("backendBaseUrl", state.backendBaseUrl);
     xml->setAttribute("prompt", state.prompt);
+    xml->setAttribute("usePromptBuilder", state.usePromptBuilder);
+    xml->setAttribute("promptStyle", state.promptSelection.style);
+    xml->setAttribute("promptMood", state.promptSelection.mood);
+    xml->setAttribute("promptDrums", state.promptSelection.drums);
+    xml->setAttribute("promptBass", state.promptSelection.bass);
+    xml->setAttribute("promptLead", state.promptSelection.lead);
+    xml->setAttribute("promptTexture", state.promptSelection.texture);
+    xml->setAttribute("promptEnergy", state.promptSelection.energy);
+    xml->setAttribute("promptVocals", state.promptSelection.vocals);
     xml->setAttribute("lyrics", state.lyrics);
     xml->setAttribute("referenceAudioPath", state.referenceAudioPath);
     xml->setAttribute("sourceAudioPath", state.sourceAudioPath);
@@ -141,6 +150,24 @@ std::optional<PluginState> parseStateXml(const juce::XmlElement& xml)
     state.schemaVersion = xml.getIntAttribute("schemaVersion", kCurrentStateVersion);
     state.backendBaseUrl = xml.getStringAttribute("backendBaseUrl", kDefaultBackendBaseUrl).trim();
     state.prompt = xml.getStringAttribute("prompt");
+    // Older projects only had a free-text prompt; never replace it on load.
+    state.usePromptBuilder = xml.getBoolAttribute("usePromptBuilder", false);
+    state.promptSelection.style = promptbuilder::validId(
+        promptbuilder::styles, xml.getIntAttribute("promptStyle", 1));
+    state.promptSelection.mood = promptbuilder::validId(
+        promptbuilder::moods, xml.getIntAttribute("promptMood", 1));
+    state.promptSelection.drums = promptbuilder::validId(
+        promptbuilder::drums, xml.getIntAttribute("promptDrums", 1));
+    state.promptSelection.bass = promptbuilder::validId(
+        promptbuilder::basses, xml.getIntAttribute("promptBass", 1));
+    state.promptSelection.lead = promptbuilder::validId(
+        promptbuilder::leads, xml.getIntAttribute("promptLead", 1));
+    state.promptSelection.texture = promptbuilder::validId(
+        promptbuilder::textures, xml.getIntAttribute("promptTexture", 1));
+    state.promptSelection.energy = promptbuilder::validId(
+        promptbuilder::energies, xml.getIntAttribute("promptEnergy", 1));
+    state.promptSelection.vocals = promptbuilder::validId(
+        promptbuilder::vocals, xml.getIntAttribute("promptVocals", 1));
     state.lyrics = xml.getStringAttribute("lyrics");
     state.referenceAudioPath = xml.getStringAttribute("referenceAudioPath");
     state.sourceAudioPath = xml.getStringAttribute("sourceAudioPath");

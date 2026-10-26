@@ -9,7 +9,7 @@ namespace
 {
 constexpr int kEditorWidth = 1080;
 constexpr int kViewportHeight = 920;
-constexpr int kContentHeight = 2060; // Auto Align suggestion and diagnostic status row.
+constexpr int kContentHeight = 2328; // Prompt Designer, then original Compose / Transport workflow.
 }  // namespace
 
 void ACEStepVST3AudioProcessorEditor::ScrollContent::paint(juce::Graphics& g)
@@ -29,6 +29,7 @@ ACEStepVST3AudioProcessorEditor::ACEStepVST3AudioProcessorEditor(
     addAndMakeVisible(viewport_);
 
     for (auto* component : {static_cast<juce::Component*>(&statusStrip_),
+                            static_cast<juce::Component*>(&promptDesigner_),
                             static_cast<juce::Component*>(&synthPanel_),
                             static_cast<juce::Component*>(&transport_),
                             static_cast<juce::Component*>(&compositionLane_),
@@ -66,6 +67,8 @@ void ACEStepVST3AudioProcessorEditor::resized()
     statusStrip_.setBounds(bounds.removeFromTop(96));
     bounds.removeFromTop(14);
 
+    promptDesigner_.setBounds(bounds.removeFromTop(254));
+    bounds.removeFromTop(14);
     auto upper = bounds.removeFromTop(520);
     bounds.removeFromTop(14);
     auto compositionBounds = bounds.removeFromTop(296);

@@ -3,6 +3,7 @@
 #include "PluginConfig.h"
 #include "PluginEnums.h"
 #include "PluginProcessor.h"
+#include "PromptBuilder.h"
 
 namespace acestep::vst3
 {
@@ -106,6 +107,30 @@ void ACEStepVST3AudioProcessorEditor::configureEditors()
 
 void ACEStepVST3AudioProcessorEditor::configureSelectors()
 {
+    auto& promptSourceBox = promptDesigner_.promptSourceBox();
+    promptSourceBox.addItem("Selectors // automatic", 1);
+    promptSourceBox.addItem("Free Text // manual", 2);
+    const auto addPromptChoices = [](juce::ComboBox& box, const auto& choices)
+    {
+        int id = 1;
+        for (const auto& choice : choices)
+            box.addItem(juce::String(choice.label), id++);
+    };
+    addPromptChoices(promptDesigner_.styleBox(), promptbuilder::styles);
+    addPromptChoices(promptDesigner_.moodBox(), promptbuilder::moods);
+    addPromptChoices(promptDesigner_.drumsBox(), promptbuilder::drums);
+    addPromptChoices(promptDesigner_.bassBox(), promptbuilder::basses);
+    addPromptChoices(promptDesigner_.leadBox(), promptbuilder::leads);
+    addPromptChoices(promptDesigner_.textureBox(), promptbuilder::textures);
+    addPromptChoices(promptDesigner_.energyBox(), promptbuilder::energies);
+    addPromptChoices(promptDesigner_.vocalsBox(), promptbuilder::vocals);
+    promptSourceBox.onChange = [this] { persistTextFields(); };
+    for (auto* box : {&promptDesigner_.styleBox(), &promptDesigner_.moodBox(),
+                       &promptDesigner_.drumsBox(), &promptDesigner_.bassBox(),
+                       &promptDesigner_.leadBox(), &promptDesigner_.textureBox(),
+                       &promptDesigner_.energyBox(), &promptDesigner_.vocalsBox()})
+        box->onChange = [this] { persistTextFields(); };
+
     auto& durationBox = synthPanel_.durationBox();
     auto& modelBox = synthPanel_.modelBox();
     auto& qualityBox = synthPanel_.qualityBox();
@@ -240,7 +265,17 @@ void ACEStepVST3AudioProcessorEditor::syncFromProcessor()
     synthPanel_.backendUrlEditor().setText(state.backendBaseUrl, juce::dontSendNotification);
     synthPanel_.modeBox().setSelectedId(static_cast<int>(state.workflowMode) + 1,
                                         juce::dontSendNotification);
-    synthPanel_.promptEditor().setText(state.prompt, juce::dontSendNotification);
+    promptDesigner_.promptSourceBox().setSelectedId(state.usePromptBuilder ? 1 : 2,
+                                                    juce::dontSendNotification);
+    promptDesigner_.styleBox().setSelectedId(state.promptSelection.style, juce::dontSendNotification);
+    promptDesigner_.moodBox().setSelectedId(state.promptSelection.mood, juce::dontSendNotification);
+    promptDesigner_.drumsBox().setSelectedId(state.promptSelection.drums, juce::dontSendNotification);
+    promptDesigner_.bassBox().setSelectedId(state.promptSelection.bass, juce::dontSendNotification);
+    promptDesigner_.leadBox().setSelectedId(state.promptSelection.lead, juce::dontSendNotification);
+    promptDesigner_.textureBox().setSelectedId(state.promptSelection.texture, juce::dontSendNotification);
+    promptDesigner_.energyBox().setSelectedId(state.promptSelection.energy, juce::dontSendNotification);
+    promptDesigner_.vocalsBox().setSelectedId(state.promptSelection.vocals, juce::dontSendNotification);
+    refreshPromptPreview();
     synthPanel_.lyricsEditor().setText(state.lyrics, juce::dontSendNotification);
     synthPanel_.referenceAudioEditor().setText(state.referenceAudioPath, juce::dontSendNotification);
     synthPanel_.sourceAudioEditor().setText(state.sourceAudioPath, juce::dontSendNotification);
@@ -270,6 +305,16 @@ void ACEStepVST3AudioProcessorEditor::syncFromProcessor()
     synthPanel_.loraScaleSlider().setValue(state.loraScale, juce::dontSendNotification);
     synthPanel_.useLoRAToggle().setToggleState(state.useLora, juce::dontSendNotification);
     isSyncing_ = false;
+}
+
+void ACEStepVST3AudioProcessorEditor::refreshPromptPreview()
+{
+    const auto& state = processor_.getState();
+    synthPanel_.setPromptPreviewMode(state.usePromptBuilder);
+    promptDesigner_.setSelectorsEnabled(state.usePromptBuilder);
+    const auto text = activePrompt(state);
+    if (synthPanel_.promptEditor().getText() != text)
+        synthPanel_.promptEditor().setText(text, juce::dontSendNotification);
 }
 
 void ACEStepVST3AudioProcessorEditor::persistTextFields()
@@ -308,7 +353,19 @@ void ACEStepVST3AudioProcessorEditor::persistTextFields()
     }
 
     state.workflowMode = static_cast<WorkflowMode>(juce::jmax(0, modeBox.getSelectedItemIndex()));
-    state.prompt = promptEditor.getText();
+    // The preview text in Selectors mode is not a manual prompt. Keep the
+    // existing manual text intact when the user switches between sources.
+    if (!state.usePromptBuilder)
+        state.prompt = promptEditor.getText();
+    state.usePromptBuilder = promptDesigner_.promptSourceBox().getSelectedId() != 2;
+    state.promptSelection.style = promptDesigner_.styleBox().getSelectedId();
+    state.promptSelection.mood = promptDesigner_.moodBox().getSelectedId();
+    state.promptSelection.drums = promptDesigner_.drumsBox().getSelectedId();
+    state.promptSelection.bass = promptDesigner_.bassBox().getSelectedId();
+    state.promptSelection.lead = promptDesigner_.leadBox().getSelectedId();
+    state.promptSelection.texture = promptDesigner_.textureBox().getSelectedId();
+    state.promptSelection.energy = promptDesigner_.energyBox().getSelectedId();
+    state.promptSelection.vocals = promptDesigner_.vocalsBox().getSelectedId();
     state.lyrics = lyricsEditor.getText();
     state.referenceAudioPath = referenceAudioEditor.getText();
     state.sourceAudioPath = sourceAudioEditor.getText();
@@ -349,6 +406,7 @@ void ACEStepVST3AudioProcessorEditor::persistTextFields()
         juce::jmax(0, resultDeck_.comparePrimarySelector().getSelectedItemIndex());
     state.session.compareSecondarySlot =
         juce::jmax(0, resultDeck_.compareSecondarySelector().getSelectedItemIndex());
+    refreshPromptPreview();
     refreshStatusViews();
 }
 

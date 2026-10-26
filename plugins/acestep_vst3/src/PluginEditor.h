@@ -3,6 +3,7 @@
 #include <JuceHeader.h>
 
 #include "CompositionLaneComponent.h"
+#include "PromptDesignerComponent.h"
 #include "PreviewDeckComponent.h"
 #include "ResultDeckComponent.h"
 #include "StatusStripComponent.h"
@@ -36,6 +37,7 @@ private:
     void configureEditors();
     void configureSelectors();
     void syncFromProcessor();
+    void refreshPromptPreview();
     void persistTextFields();
     void refreshResultSelector();
     void refreshStatusViews();
@@ -59,6 +61,7 @@ private:
     juce::Viewport viewport_;
     ScrollContent scrollContent_;
     StatusStripComponent statusStrip_;
+    PromptDesignerComponent promptDesigner_;
     SynthPanelComponent synthPanel_;
     TapeTransportComponent transport_;
     CompositionLaneComponent compositionLane_;

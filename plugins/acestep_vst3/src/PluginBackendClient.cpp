@@ -375,7 +375,7 @@ PluginGenerationStartResult PluginBackendClient::startGeneration(const PluginSta
     PluginGenerationStartResult result;
 
     juce::DynamicObject::Ptr payload = new juce::DynamicObject();
-    auto prompt = modeNeedsPrompt(state.workflowMode) ? state.prompt : juce::String();
+    auto prompt = modeNeedsPrompt(state.workflowMode) ? activePrompt(state) : juce::String();
     if (state.generationLoopBars > 0 && prompt.isNotEmpty())
     {
         prompt += ", continuous steady groove throughout, no intro, no outro, "
