@@ -61,6 +61,20 @@ are sent to ACE-Step's Python `/release_task` API as `bpm`,
   exported loop in mint, so differences around the cuts are easier to inspect.
   Beat guides appear when the generation BPM was captured. This is a visual
   diagnostic; it does **not** move, stretch, quantize, or process the audio.
+  Short orange ticks are **candidate transients** detected from the original
+  thumbnail (not positively classified kicks). If attacks are sufficiently
+  consistent, **Attack phase ~ -N ms** estimates their median displacement
+  relative to the beat grid. The value is advisory; inspect at 8x or 16x.
+  **Crop shift** (-500 to +500 ms) moves the *blue proposed source selection*
+  with respect to the fixed mint exported loop and the beat grid. This is a
+  reversible visual preview; it does not edit or play the proposed selection.
+  **Reset shift** cancels the preview. **Export adjusted WAV** explicitly
+  extracts the shifted source interval into a *new* timestamped WAV file of
+  the same exact duration, using the prior anti-click preference. The original
+  and previous loop files remain untouched; the new WAV becomes the selected
+  take's Preview/Drag source. This feature works only for bar-length takes
+  where the original WAV and exact crop metadata are available. Seconds mode
+  is unchanged, and no phase correction is enabled by default.
   Older `*-4bars.wav` files with a matching original beside them can also
   display an inferred crop range, clearly labelled as inferred.
 - **Anti-click fades (5 ms)** is optional and **off by default** for bars,
@@ -123,3 +137,4 @@ DAW's VST3 plugin folder after closing the DAW.
 
 Native drag/drop may differ across DAWs and operating systems. The plugin does
 not use private Ableton APIs to create arrangement clips programmatically.
+

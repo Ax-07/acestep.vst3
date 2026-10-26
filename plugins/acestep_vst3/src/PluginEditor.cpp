@@ -9,7 +9,7 @@ namespace
 {
 constexpr int kEditorWidth = 1080;
 constexpr int kViewportHeight = 920;
-constexpr int kContentHeight = 1924; // Extra scrolling space for real waveform debugging.
+constexpr int kContentHeight = 2016; // Room for the transient/loop-shift inspector.
 }  // namespace
 
 void ACEStepVST3AudioProcessorEditor::ScrollContent::paint(juce::Graphics& g)
@@ -92,3 +92,4 @@ void ACEStepVST3AudioProcessorEditor::timerCallback()
     refreshStatusViews();
 }
 }  // namespace acestep::vst3
+

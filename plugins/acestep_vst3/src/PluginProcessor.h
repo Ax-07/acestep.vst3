@@ -59,6 +59,9 @@ public:
     [[nodiscard]] bool hasPreviewFile() const;
     [[nodiscard]] bool isPreviewPlaying() const;
     [[nodiscard]] bool exportSessionSummary(const juce::File& file);
+    // A user-confirmed, non-destructive re-cut from the saved original WAV.
+    // Never shifts already-rendered audio or overwrites an existing export.
+    [[nodiscard]] bool exportAdjustedLoop(double offsetMilliseconds, juce::String& error);
     void requestGeneration();
     void requestLoadLoRA();
     void requestUnloadLoRA();
@@ -135,3 +138,4 @@ private:
     JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR(ACEStepVST3AudioProcessor)
 };
 }  // namespace acestep::vst3
+

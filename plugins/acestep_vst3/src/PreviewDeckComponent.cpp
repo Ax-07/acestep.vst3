@@ -1,6 +1,7 @@
 #include "PreviewDeckComponent.h"
 
 #include "V2Chrome.h"
+#include <algorithm>
 #include <cmath>
 
 namespace acestep::vst3
@@ -26,9 +27,30 @@ PreviewDeckComponent::PreviewDeckComponent()
     panSlider_.setTooltip("Move through the zoomed loop from its beginning to its end.");
     panSlider_.onValueChange = [this] { repaint(); };
     panSlider_.setEnabled(false);
+
+    shiftSlider_.setSliderStyle(juce::Slider::LinearHorizontal);
+    shiftSlider_.setTextBoxStyle(juce::Slider::TextBoxRight, false, 74, 23);
+    shiftSlider_.setRange(-500.0, 500.0, 1.0);
+    shiftSlider_.setNumDecimalPlacesToDisplay(0);
+    shiftSlider_.setTextValueSuffix(" ms");
+    shiftSlider_.setDoubleClickReturnValue(true, 0.0);
+    shiftSlider_.setTooltip("Preview the source crop shifted by milliseconds; original WAV and current export stay unchanged.");
+    shiftSlider_.onValueChange = [this] { updateAlignmentControls(); repaint(); };
+    shiftLabel_.setColour(juce::Label::textColourId, v2::kLabelMuted);
+    shiftLabel_.setText("Crop shift", juce::dontSendNotification);
+    phaseLabel_.setColour(juce::Label::textColourId, v2::kAccentAmber);
+    phaseLabel_.setJustificationType(juce::Justification::centredLeft);
+    resetShiftButton_.onClick = [this] { shiftSlider_.setValue(0.0); };
+    exportAlignedButton_.setTooltip("Write a NEW adjusted WAV and use it for this take. The original and previous exports are preserved.");
     addAndMakeVisible(zoomLabel_);
     addAndMakeVisible(zoomBox_);
     addAndMakeVisible(panSlider_);
+    for (auto* item : {static_cast<juce::Component*>(&shiftLabel_),
+                       static_cast<juce::Component*>(&shiftSlider_),
+                       static_cast<juce::Component*>(&resetShiftButton_),
+                       static_cast<juce::Component*>(&exportAlignedButton_),
+                       static_cast<juce::Component*>(&phaseLabel_)})
+        addAndMakeVisible(*item);
     summaryLabel_.setColour(juce::Label::textColourId, v2::kLabelPrimary);
     summaryLabel_.setJustificationType(juce::Justification::centredLeft);
     addAndMakeVisible(summaryLabel_);
@@ -73,6 +95,17 @@ void PreviewDeckComponent::resized()
     zoomBox_.setBounds(tools.removeFromLeft(90));
     tools.removeFromLeft(12);
     panSlider_.setBounds(tools.removeFromLeft(290));
+
+    area.removeFromTop(6);
+    auto adjustment = area.removeFromTop(32);
+    shiftLabel_.setBounds(adjustment.removeFromLeft(80));
+    shiftSlider_.setBounds(adjustment.removeFromLeft(330));
+    adjustment.removeFromLeft(8);
+    resetShiftButton_.setBounds(adjustment.removeFromLeft(108));
+    adjustment.removeFromLeft(8);
+    exportAlignedButton_.setBounds(adjustment.removeFromLeft(185));
+    adjustment.removeFromLeft(10);
+    phaseLabel_.setBounds(adjustment);
 
     area.removeFromTop(12);
     rulerBounds_ = area.removeFromTop(22);
@@ -181,6 +214,9 @@ void PreviewDeckComponent::setWaveformFiles(const juce::String& originalFilePath
     inferredSelection_ = inferred;
     hoverDetailX_ = -1;
     panSlider_.setValue(0.0, juce::dontSendNotification);
+    shiftSlider_.setValue(0.0, juce::dontSendNotification);
+    transientMarkers_.clear();
+    transientScanReady_ = false;
 
     originalThumbnail_.clear();
     loopThumbnail_.clear();
@@ -188,12 +224,78 @@ void PreviewDeckComponent::setWaveformFiles(const juce::String& originalFilePath
         originalThumbnail_.setSource(new juce::FileInputSource(juce::File(sourcePath)));
     if (validLoop.isNotEmpty())
         loopThumbnail_.setSource(new juce::FileInputSource(juce::File(validLoop)));
+    updateAlignmentControls();
     repaint();
 }
 
 void PreviewDeckComponent::changeListenerCallback(juce::ChangeBroadcaster*)
 {
+    if (!transientScanReady_ && originalThumbnail_.isFullyLoaded())
+        rebuildTransientMarkers();
+    updateAlignmentControls();
     repaint();
+}
+
+void PreviewDeckComponent::rebuildTransientMarkers()
+{
+    transientScanReady_ = true;
+    transientMarkers_.clear();
+    if (originalThumbnail_.getTotalLength() <= 0.0 || bpm_ <= 0
+        || selectionEndSeconds_ <= selectionStartSeconds_)
+        return;
+
+    // Inspect only the selected area +/- 1 second, rather than scanning the
+    // full model render. Data comes from JUCE's asynchronously-built thumbnail.
+    constexpr double step = 0.005;
+    const auto start = juce::jmax(0.0, selectionStartSeconds_ - 1.0);
+    const auto end = juce::jmin(originalThumbnail_.getTotalLength(),
+                               selectionEndSeconds_ + 1.0);
+    std::vector<float> envelope;
+    envelope.reserve(static_cast<size_t>((end - start) / step + 1));
+    for (double second = start; second < end; second += step)
+    {
+        auto amplitude = 0.0f;
+        for (int channel = 0; channel < originalThumbnail_.getNumChannels(); ++channel)
+        {
+            auto low = 0.0f;
+            auto high = 0.0f;
+            originalThumbnail_.getApproximateMinMax(second, juce::jmin(end, second + step),
+                                                   channel, low, high);
+            amplitude = juce::jmax(amplitude, juce::jmax(std::abs(low), std::abs(high)));
+        }
+        envelope.push_back(amplitude);
+    }
+    transientMarkers_ = phase::detectAttacks(envelope, start, step);
+}
+
+void PreviewDeckComponent::updateAlignmentControls()
+{
+    const auto validSelection = selectionEndSeconds_ > selectionStartSeconds_
+        && originalFilePath_ != loopFilePath_
+        && juce::File(originalFilePath_).existsAsFile()
+        && juce::File(loopFilePath_).existsAsFile();
+    shiftSlider_.setEnabled(validSelection);
+    resetShiftButton_.setEnabled(validSelection && shiftSlider_.getValue() != 0.0);
+    const auto shiftedStart = selectionStartSeconds_ + shiftSlider_.getValue() / 1000.0;
+    const auto shiftedEnd = selectionEndSeconds_ + shiftSlider_.getValue() / 1000.0;
+    exportAlignedButton_.setEnabled(validSelection && shiftSlider_.getValue() != 0.0
+                                    && shiftedStart >= 0.0
+                                    && shiftedEnd <= originalThumbnail_.getTotalLength() + 0.001);
+
+    auto message = juce::String("Attacks: awaiting waveform");
+    if (transientScanReady_ && bpm_ > 0 && !transientMarkers_.empty())
+    {
+        const auto estimate = phase::estimateBeatPhase(transientMarkers_, shiftedStart,
+                                                        selectionEndSeconds_ - selectionStartSeconds_, bpm_);
+        if (estimate.reliable)
+            message = "Attack phase ~ " + juce::String(estimate.offsetSeconds * 1000.0, 0)
+                      + " ms (" + juce::String(estimate.matchedBeats) + " beats)";
+        else
+            message = "Attack phase: uncertain";
+    }
+    else if (transientScanReady_)
+        message = "No reliable rhythmic attacks";
+    phaseLabel_.setText(message, juce::dontSendNotification);
 }
 
 void PreviewDeckComponent::mouseMove(const juce::MouseEvent& event)
@@ -246,6 +348,11 @@ void PreviewDeckComponent::paintDebugWaveforms(juce::Graphics& g)
                                          : 0.0;
     const auto end = hasExactSelection ? juce::jlimit(0.0, sourceDuration, selectionEndSeconds_)
                                        : sourceDuration;
+    const auto shiftSeconds = shiftSlider_.getValue() / 1000.0;
+    const auto previewStart = start + shiftSeconds;
+    const auto previewEnd = end + shiftSeconds;
+    const auto validPreview = hasExactSelection && previewStart >= 0.0
+                              && previewEnd <= sourceDuration + 0.001;
     const auto sourceX = [this, sourceDuration](double time) {
         return originalLane_.getX() + juce::roundToInt(
             originalLane_.getWidth() * time / sourceDuration);
@@ -259,6 +366,16 @@ void PreviewDeckComponent::paintDebugWaveforms(juce::Graphics& g)
     g.fillRect(juce::Rectangle<int>(left, originalLane_.getY(),
                                    right - left, originalLane_.getHeight()));
     g.fillRect(alignedRange);
+
+    // Amber is the current exported file. Blue is a proposed *preview only*
+    // selection until the user explicitly exports a fresh WAV.
+    if (validPreview && shiftSeconds != 0.0)
+    {
+        g.setColour(v2::kAccentBlue.withAlpha(0.14f));
+        g.fillRect(juce::Rectangle<int>(sourceX(previewStart), originalLane_.getY(),
+                                        juce::jmax(1, sourceX(previewEnd) - sourceX(previewStart)),
+                                        originalLane_.getHeight()));
+    }
 
     // Both overview lanes share the *original* timeline, so the lower
     // waveform can only appear directly beneath the exact cropped interval.
@@ -295,13 +412,31 @@ void PreviewDeckComponent::paintDebugWaveforms(juce::Graphics& g)
         g.drawVerticalLine(x, static_cast<float>(originalLane_.getY()),
                            static_cast<float>(alignedLane_.getBottom()));
 
+    if (validPreview && shiftSeconds != 0.0)
+    {
+        g.setColour(v2::kAccentBlue);
+        for (const auto x : {sourceX(previewStart), sourceX(previewEnd)})
+            g.drawVerticalLine(x, static_cast<float>(originalLane_.getY()),
+                               static_cast<float>(originalLane_.getBottom()));
+    }
+
+    // Orange onset lines indicate candidates only, NOT verified kick events.
+    g.setColour(v2::kAccentAmber.withAlpha(0.65f));
+    for (const auto& attack : transientMarkers_)
+    {
+        if (attack.seconds >= 0.0 && attack.seconds <= sourceDuration)
+            g.drawVerticalLine(sourceX(attack.seconds),
+                               static_cast<float>(originalLane_.getY()),
+                               static_cast<float>(originalLane_.getY() + 16));
+    }
+
     g.setColour(v2::kLabelPrimary);
     g.drawText("ORIGINAL  //  " + juce::File(originalFilePath_).getFileName()
                + "  //  " + juce::String(sourceDuration, 2) + " s",
                originalLane_.withY(originalLane_.getY() - 18).withHeight(18),
                juce::Justification::centredLeft);
     g.drawText(hasExactSelection
-                   ? "EXTRACTED LOOP  //  source " + juce::String(start, 3)
+                   ? "EXTRACTED LOOP (current WAV)  //  source " + juce::String(start, 3)
                          + " -> " + juce::String(end, 3) + " s  //  "
                          + juce::String(loopDuration, 3) + " s"
                          + (inferredSelection_ ? " (inferred for older file)" : "")
@@ -334,22 +469,38 @@ void PreviewDeckComponent::paintDebugWaveforms(juce::Graphics& g)
     {
         juce::Graphics::ScopedSaveState scope(g);
         g.reduceClipRegion(detailLane_);
-        // Overlay the precise source interval in blue with the exported loop
-        // in mint. Any change introduced by the export becomes visible here.
-        if (hasExactSelection)
+        // In adjustment mode the blue waveform is the PROPOSED source slice,
+        // while mint remains the original exported file until Apply.
+        if (validPreview)
         {
             g.setColour(v2::kAccentBlue.withAlpha(0.45f));
             originalThumbnail_.drawChannels(g, detailLane_.reduced(2),
-                                            start + detailStart, start + detailEnd, 0.95f);
+                                            previewStart + detailStart,
+                                            previewStart + detailEnd, 0.95f);
         }
         g.setColour(v2::kAccentMint.withAlpha(0.85f));
         loopThumbnail_.drawChannels(g, detailLane_.reduced(2),
                                     detailStart, detailEnd, 0.95f);
     }
+
+    if (validPreview)
+    {
+        g.setColour(v2::kAccentAmber.withAlpha(0.72f));
+        for (const auto& attack : transientMarkers_)
+        {
+            const auto position = attack.seconds - previewStart;
+            if (position >= detailStart && position <= detailEnd)
+            {
+                const auto x = detailX(position);
+                g.drawVerticalLine(x, static_cast<float>(detailLane_.getY()),
+                                   static_cast<float>(detailLane_.getY() + 24));
+            }
+        }
+    }
     g.setColour(v2::kLabelPrimary);
     g.drawText("LOOP DETAIL  //  " + juce::String(zoom) + "x  //  "
                + juce::String(detailStart, 3) + " - " + juce::String(detailEnd, 3) + " s"
-               + (hasExactSelection ? "  //  blue: source / mint: export" : "")
+               + (validPreview ? "  //  blue: proposed source / mint: current export" : "")
                + (bpm_ > 0 ? "  //  beat grid " + juce::String(bpm_) + " BPM" : ""),
                detailLane_.withY(detailLane_.getY() - 18).withHeight(18),
                juce::Justification::centredLeft);
@@ -362,8 +513,8 @@ void PreviewDeckComponent::paintDebugWaveforms(juce::Graphics& g)
         g.drawVerticalLine(hoverDetailX_, static_cast<float>(detailLane_.getY()),
                            static_cast<float>(detailLane_.getBottom()));
         auto tooltip = "loop " + juce::String(timeOnLoop, 3) + "s";
-        if (hasExactSelection)
-            tooltip += "  |  original " + juce::String(start + timeOnLoop, 3) + "s";
+        if (validPreview)
+            tooltip += "  |  source " + juce::String(previewStart + timeOnLoop, 3) + "s";
         const auto width = 242;
         const auto popupX = juce::jlimit(detailLane_.getX(), detailLane_.getRight() - width,
                                         hoverDetailX_ - width / 2);
@@ -380,9 +531,12 @@ juce::TextButton& PreviewDeckComponent::playButton() noexcept { return playButto
 juce::TextButton& PreviewDeckComponent::stopButton() noexcept { return stopButton_; }
 juce::TextButton& PreviewDeckComponent::clearButton() noexcept { return clearButton_; }
 juce::TextButton& PreviewDeckComponent::revealButton() noexcept { return revealButton_; }
+juce::TextButton& PreviewDeckComponent::exportAlignedButton() noexcept { return exportAlignedButton_; }
+double PreviewDeckComponent::cropShiftMilliseconds() const noexcept { return shiftSlider_.getValue(); }
 
 void PreviewDeckComponent::setPreviewSummary(const juce::String& summary)
 {
     summaryLabel_.setText(summary, juce::dontSendNotification);
 }
 }  // namespace acestep::vst3
+

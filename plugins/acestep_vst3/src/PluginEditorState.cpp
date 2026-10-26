@@ -207,6 +207,13 @@ void ACEStepVST3AudioProcessorEditor::configureSelectors()
     previewDeck_.stopButton().onClick = [this] { stopPreviewFile(); };
     previewDeck_.clearButton().onClick = [this] { clearPreviewFile(); };
     previewDeck_.revealButton().onClick = [this] { revealPreviewFile(); };
+    previewDeck_.exportAlignedButton().onClick = [this] {
+        juce::String error;
+        if (!processor_.exportAdjustedLoop(previewDeck_.cropShiftMilliseconds(), error))
+            juce::AlertWindow::showMessageBoxAsync(juce::AlertWindow::WarningIcon,
+                                                   "ACE-Step loop adjustment", error);
+        refreshStatusViews();
+    };
     compositionLane_.exportButton().onClick = [this] { chooseSessionExportFile(); };
 }
 
@@ -523,3 +530,4 @@ void ACEStepVST3AudioProcessorEditor::toggleComparePreview()
     refreshStatusViews();
 }
 }  // namespace acestep::vst3
+

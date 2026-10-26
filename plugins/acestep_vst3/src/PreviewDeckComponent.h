@@ -1,6 +1,9 @@
 #pragma once
 
 #include <JuceHeader.h>
+#include <vector>
+
+#include "LoopPhaseAnalysis.h"
 
 namespace acestep::vst3
 {
@@ -21,6 +24,8 @@ public:
     juce::TextButton& stopButton() noexcept;
     juce::TextButton& clearButton() noexcept;
     juce::TextButton& revealButton() noexcept;
+    juce::TextButton& exportAlignedButton() noexcept;
+    [[nodiscard]] double cropShiftMilliseconds() const noexcept;
     void setPreviewSummary(const juce::String& summary);
     // Both lanes share the original file's time axis. The extracted loop is
     // painted directly beneath its exact source selection; the third lane
@@ -36,6 +41,8 @@ private:
     void changeListenerCallback(juce::ChangeBroadcaster*) override;
     void drawLane(juce::Graphics& g, juce::Rectangle<int> bounds) const;
     void paintDebugWaveforms(juce::Graphics& g);
+    void rebuildTransientMarkers();
+    void updateAlignmentControls();
 
     juce::AudioFormatManager audioFormats_;
     juce::AudioThumbnailCache thumbnailCache_ {4};
@@ -53,6 +60,8 @@ private:
     double selectionEndSeconds_ = 0.0;
     int bpm_ = 0;
     bool inferredSelection_ = false;
+    bool transientScanReady_ = false;
+    std::vector<phase::Attack> transientMarkers_;
     int hoverDetailX_ = -1;
     juce::Rectangle<int> rulerBounds_;
     juce::Rectangle<int> originalLane_;
@@ -63,6 +72,11 @@ private:
     juce::Label zoomLabel_;
     juce::ComboBox zoomBox_;
     juce::Slider panSlider_;
+    juce::Label shiftLabel_;
+    juce::Slider shiftSlider_;
+    juce::TextButton resetShiftButton_ {"Reset shift"};
+    juce::TextButton exportAlignedButton_ {"Export adjusted WAV"};
+    juce::Label phaseLabel_;
     juce::TextButton loadButton_ {"Load Preview"};
     juce::TextButton playButton_ {"Play"};
     juce::TextButton stopButton_ {"Stop"};
@@ -70,3 +84,4 @@ private:
     juce::TextButton revealButton_ {"Reveal File"};
 };
 }  // namespace acestep::vst3
+

@@ -4,6 +4,8 @@
 
 #include <cmath>
 
+#include <cmath>
+
 namespace acestep::vst3
 {
 namespace
@@ -49,6 +51,91 @@ juce::String printableField(const juce::String& value, const juce::String& fallb
 {
     const auto trimmed = value.trim();
     return trimmed.isEmpty() ? fallback : trimmed;
+}
+
+bool writeAdjustedWav(const juce::File& originalFile, const juce::File& destination,
+                      double startSeconds, double durationSeconds, bool antiClickFades,
+                      double& actualStart, double& actualEnd, juce::String& error)
+{
+    juce::AudioFormatManager formats;
+    formats.registerBasicFormats();
+    std::unique_ptr<juce::AudioFormatReader> reader(formats.createReaderFor(originalFile));
+    if (reader == nullptr || reader->sampleRate <= 0.0 || reader->numChannels == 0)
+    {
+        error = "Original WAV cannot be opened.";
+        return false;
+    }
+
+    const auto startSample = static_cast<juce::int64>(std::llround(startSeconds * reader->sampleRate));
+    const auto outputSamples = static_cast<juce::int64>(std::llround(durationSeconds * reader->sampleRate));
+    if (startSample < 0 || outputSamples < 1 || startSample + outputSamples > reader->lengthInSamples)
+    {
+        error = "Crop falls outside the saved original WAV.";
+        return false;
+    }
+    if (destination.exists())
+    {
+        error = "Refusing to overwrite an existing WAV.";
+        return false;
+    }
+
+    auto stream = destination.createOutputStream();
+    if (stream == nullptr || !stream->openedOk())
+    {
+        error = "Cannot create adjusted WAV.";
+        return false;
+    }
+    juce::WavAudioFormat format;
+    std::unique_ptr<juce::AudioFormatWriter> writer(
+        format.createWriterFor(stream.get(), reader->sampleRate, reader->numChannels, 24, {}, 0));
+    if (writer == nullptr)
+    {
+        error = "Cannot initialise adjusted WAV writer.";
+        return false;
+    }
+    stream.release();
+
+    constexpr int kBlock = 4096;
+    juce::AudioBuffer<float> block(static_cast<int>(reader->numChannels), kBlock);
+    const auto fadeSamples = juce::jmax<juce::int64>(
+        1, static_cast<juce::int64>(std::llround(0.005 * reader->sampleRate)));
+    for (juce::int64 offset = 0; offset < outputSamples; offset += kBlock)
+    {
+        const auto chunk = static_cast<int>(juce::jmin<juce::int64>(kBlock, outputSamples - offset));
+        block.clear();
+        if (!reader->read(&block, 0, chunk, startSample + offset, true, true))
+        {
+            writer.reset();
+            [[maybe_unused]] const auto removed = destination.deleteFile();
+            error = "Failed while reading source WAV.";
+            return false;
+        }
+        if (antiClickFades)
+        {
+            for (int sample = 0; sample < chunk; ++sample)
+            {
+                const auto index = offset + sample;
+                const auto fadeIn = static_cast<float>(juce::jmin<juce::int64>(index, fadeSamples))
+                                    / static_cast<float>(fadeSamples);
+                const auto fadeOut = static_cast<float>(juce::jmin<juce::int64>(
+                    outputSamples - index - 1, fadeSamples)) / static_cast<float>(fadeSamples);
+                const auto gain = juce::jmin(fadeIn, fadeOut);
+                for (int channel = 0; channel < block.getNumChannels(); ++channel)
+                    block.setSample(channel, sample, block.getSample(channel, sample) * gain);
+            }
+        }
+        if (!writer->writeFromAudioSampleBuffer(block, 0, chunk))
+        {
+            writer.reset();
+            [[maybe_unused]] const auto removed = destination.deleteFile();
+            error = "Failed while writing adjusted WAV.";
+            return false;
+        }
+    }
+    writer.reset();
+    actualStart = startSample / reader->sampleRate;
+    actualEnd = (startSample + outputSamples) / reader->sampleRate;
+    return true;
 }
 }  // namespace
 
@@ -225,6 +312,72 @@ bool ACEStepVST3AudioProcessor::loadPreviewFile(const juce::File& file)
     state_.previewDisplayName = file.getFileName();
     state_.errorMessage = {};
     state_.session.lastCompletedSlot = state_.selectedResultSlot;
+    return true;
+}
+
+bool ACEStepVST3AudioProcessor::exportAdjustedLoop(double offsetMilliseconds, juce::String& error)
+{
+    if (!std::isfinite(offsetMilliseconds) || std::abs(offsetMilliseconds) < 0.5)
+    {
+        error = "Choose a non-zero crop shift first.";
+        state_.errorMessage = error;
+        return false;
+    }
+
+    const auto slot = state_.selectedResultSlot;
+    if (slot < 0 || slot >= kResultSlotCount)
+    {
+        error = "No selected take.";
+        state_.errorMessage = error;
+        return false;
+    }
+    auto& take = state_.resultTakes[static_cast<size_t>(slot)];
+    const juce::File original(take.originalFilePath);
+    if (take.loopBars <= 0 || !original.existsAsFile()
+        || take.loopEndSeconds <= take.loopStartSeconds)
+    {
+        error = "This take has no original WAV / exact bar selection to adjust.";
+        state_.errorMessage = error;
+        return false;
+    }
+
+    // Unique sibling filename: a manual adjustment must never replace the
+    // original, the automatic export, or a previous adjustment.
+    const auto prefix = original.getFileNameWithoutExtension()
+        + "-" + juce::String(take.loopBars) + "bars-aligned-"
+        + juce::String(juce::Time::currentTimeMillis());
+    auto filename = prefix + ".wav";
+    auto destination = original.getSiblingFile(filename);
+    for (int suffix = 1; destination.exists(); ++suffix)
+    {
+        filename = prefix + "-" + juce::String(suffix) + ".wav";
+        destination = original.getSiblingFile(filename);
+    }
+
+    double actualStart = 0.0;
+    double actualEnd = 0.0;
+    if (!writeAdjustedWav(original, destination,
+                          take.loopStartSeconds + offsetMilliseconds / 1000.0,
+                          take.loopEndSeconds - take.loopStartSeconds,
+                          take.loopAntiClickFades, actualStart, actualEnd, error))
+    {
+        state_.errorMessage = error;
+        return false;
+    }
+
+    stopPreview();
+    if (!loadPreviewFile(destination))
+    {
+        error = state_.errorMessage;
+        return false; // The new WAV remains recoverable on disk.
+    }
+    take.localFilePath = destination.getFullPathName();
+    take.loopStartSeconds = actualStart;
+    take.loopEndSeconds = actualEnd;
+    take.statusText = "Manually adjusted loop exported";
+    take.updatedAtMs = juce::Time::currentTimeMillis();
+    mirrorTakeIntoLegacyFields(state_, slot); // Ableton drag uses the updated path.
+    state_.progressText = "Aligned WAV saved: " + destination.getFileName();
     return true;
 }
 
@@ -1106,3 +1259,4 @@ juce::AudioProcessor* JUCE_CALLTYPE createPluginFilter()
 {
     return new acestep::vst3::ACEStepVST3AudioProcessor();
 }
+
