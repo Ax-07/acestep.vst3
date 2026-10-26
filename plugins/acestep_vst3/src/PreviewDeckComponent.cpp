@@ -41,6 +41,16 @@ PreviewDeckComponent::PreviewDeckComponent()
     phaseLabel_.setColour(juce::Label::textColourId, v2::kAccentAmber);
     phaseLabel_.setJustificationType(juce::Justification::centredLeft);
     resetShiftButton_.onClick = [this] { shiftSlider_.setValue(0.0); };
+    autoAlignButton_.setTooltip("Suggest a crop shift from rhythmic attacks. Preview only; inspect the result before exporting.");
+    autoAlignButton_.onClick = [this] {
+        const auto estimate = phase::estimateBeatPhase(transientMarkers_,
+            selectionStartSeconds_ + shiftSlider_.getValue() / 1000.0,
+            selectionEndSeconds_ - selectionStartSeconds_, bpm_);
+        if (const auto proposed = phase::suggestTotalCropShiftMs(
+                estimate, shiftSlider_.getValue(), selectionStartSeconds_,
+                selectionEndSeconds_, originalThumbnail_.getTotalLength()))
+            shiftSlider_.setValue(*proposed); // No export or audio modification.
+    };
     exportAlignedButton_.setTooltip("Write a NEW adjusted WAV and use it for this take. The original and previous exports are preserved.");
     addAndMakeVisible(zoomLabel_);
     addAndMakeVisible(zoomBox_);
@@ -48,6 +58,7 @@ PreviewDeckComponent::PreviewDeckComponent()
     for (auto* item : {static_cast<juce::Component*>(&shiftLabel_),
                        static_cast<juce::Component*>(&shiftSlider_),
                        static_cast<juce::Component*>(&resetShiftButton_),
+                       static_cast<juce::Component*>(&autoAlignButton_),
                        static_cast<juce::Component*>(&exportAlignedButton_),
                        static_cast<juce::Component*>(&phaseLabel_)})
         addAndMakeVisible(*item);
@@ -99,13 +110,15 @@ void PreviewDeckComponent::resized()
     area.removeFromTop(6);
     auto adjustment = area.removeFromTop(32);
     shiftLabel_.setBounds(adjustment.removeFromLeft(80));
-    shiftSlider_.setBounds(adjustment.removeFromLeft(330));
+    shiftSlider_.setBounds(adjustment.removeFromLeft(320));
     adjustment.removeFromLeft(8);
-    resetShiftButton_.setBounds(adjustment.removeFromLeft(108));
+    resetShiftButton_.setBounds(adjustment.removeFromLeft(105));
+    adjustment.removeFromLeft(8);
+    autoAlignButton_.setBounds(adjustment.removeFromLeft(118));
     adjustment.removeFromLeft(8);
     exportAlignedButton_.setBounds(adjustment.removeFromLeft(185));
-    adjustment.removeFromLeft(10);
-    phaseLabel_.setBounds(adjustment);
+    area.removeFromTop(3);
+    phaseLabel_.setBounds(area.removeFromTop(24));
 
     area.removeFromTop(12);
     rulerBounds_ = area.removeFromTop(22);
@@ -283,18 +296,29 @@ void PreviewDeckComponent::updateAlignmentControls()
                                     && shiftedEnd <= originalThumbnail_.getTotalLength() + 0.001);
 
     auto message = juce::String("Attacks: awaiting waveform");
+    auto suggestion = std::optional<double>();
     if (transientScanReady_ && bpm_ > 0 && !transientMarkers_.empty())
     {
         const auto estimate = phase::estimateBeatPhase(transientMarkers_, shiftedStart,
                                                         selectionEndSeconds_ - selectionStartSeconds_, bpm_);
         if (estimate.reliable)
+        {
             message = "Attack phase ~ " + juce::String(estimate.offsetSeconds * 1000.0, 0)
                       + " ms (" + juce::String(estimate.matchedBeats) + " beats)";
+            if (validSelection)
+                suggestion = phase::suggestTotalCropShiftMs(
+                    estimate, shiftSlider_.getValue(), selectionStartSeconds_,
+                    selectionEndSeconds_, originalThumbnail_.getTotalLength());
+            message += suggestion.has_value()
+                ? "  //  Auto Align will preview " + juce::String(*suggestion, 0) + " ms"
+                : "  //  no safe additional adjustment suggested";
+        }
         else
             message = "Attack phase: uncertain";
     }
     else if (transientScanReady_)
         message = "No reliable rhythmic attacks";
+    autoAlignButton_.setEnabled(suggestion.has_value());
     phaseLabel_.setText(message, juce::dontSendNotification);
 }
 

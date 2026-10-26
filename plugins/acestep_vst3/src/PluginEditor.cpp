@@ -9,7 +9,7 @@ namespace
 {
 constexpr int kEditorWidth = 1080;
 constexpr int kViewportHeight = 920;
-constexpr int kContentHeight = 2016; // Room for the transient/loop-shift inspector.
+constexpr int kContentHeight = 2060; // Auto Align suggestion and diagnostic status row.
 }  // namespace
 
 void ACEStepVST3AudioProcessorEditor::ScrollContent::paint(juce::Graphics& g)

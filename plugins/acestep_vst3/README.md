@@ -68,6 +68,12 @@ are sent to ACE-Step's Python `/release_task` API as `bpm`,
   **Crop shift** (-500 to +500 ms) moves the *blue proposed source selection*
   with respect to the fixed mint exported loop and the beat grid. This is a
   reversible visual preview; it does not edit or play the proposed selection.
+  **Auto Align** is a separate, opt-in suggestion: it adds the estimated attack
+  phase to any existing manual shift, sets only the Crop shift slider, and
+  never writes audio. It is disabled for ambiguous/inconsistent attacks, an
+  already-aligned selection, or a suggested cut outside the source/bounds.
+  The markers are rhythmic attacks, NOT a kick classifier: inspect the
+  proposed phase at 4x-16x and listen before exporting.
   **Reset shift** cancels the preview. **Export adjusted WAV** explicitly
   extracts the shifted source interval into a *new* timestamped WAV file of
   the same exact duration, using the prior anti-click preference. The original

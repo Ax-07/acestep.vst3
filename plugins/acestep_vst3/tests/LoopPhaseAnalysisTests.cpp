@@ -21,10 +21,25 @@ int main()
     const auto detected = estimateBeatPhase(candidates, start, beat * 16.0, bpm);
     assert(detected.reliable);
     assert(std::abs(detected.offsetSeconds + 0.11) < 0.001);
+    const auto proposed = suggestTotalCropShiftMs(detected, 0.0, start, start + 7.5, 30.0);
+    assert(proposed.has_value() && std::abs(*proposed + 110.0) < 0.001);
     // Moving the crop earlier by 110 ms should move attacks onto the grid.
     const auto adjusted = estimateBeatPhase(candidates, start - 0.11, beat * 16.0, bpm);
     assert(adjusted.reliable);
     assert(std::abs(adjusted.offsetSeconds) < 0.001);
+    assert(!suggestTotalCropShiftMs(adjusted, -110.0, start, start + 7.5, 30.0).has_value());
+
+    // An existing -80 ms user adjustment plus an estimated -30 ms residual
+    // must suggest -110 ms TOTAL (not reset the dial to -30 ms).
+    Estimate residual;
+    residual.reliable = true;
+    residual.offsetSeconds = -0.03;
+    const auto combined = suggestTotalCropShiftMs(residual, -80.0, start, start + 7.5, 30.0);
+    assert(combined.has_value() && *combined == -110.0);
+    assert(!suggestTotalCropShiftMs(residual, -480.0, start, start + 7.5, 30.0).has_value());
+    assert(!suggestTotalCropShiftMs(residual, 0.0, 0.01, 7.51, 30.0).has_value());
+    residual.reliable = false;
+    assert(!suggestTotalCropShiftMs(residual, 0.0, start, start + 7.5, 30.0).has_value());
 
     std::vector<Attack> scattered;
     for (int i = 0; i < 16; ++i)

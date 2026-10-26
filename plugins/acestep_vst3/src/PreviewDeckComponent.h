@@ -75,6 +75,7 @@ private:
     juce::Label shiftLabel_;
     juce::Slider shiftSlider_;
     juce::TextButton resetShiftButton_ {"Reset shift"};
+    juce::TextButton autoAlignButton_ {"Auto Align"};
     juce::TextButton exportAlignedButton_ {"Export adjusted WAV"};
     juce::Label phaseLabel_;
     juce::TextButton loadButton_ {"Load Preview"};

@@ -2,6 +2,7 @@
 
 #include <algorithm>
 #include <cmath>
+#include <optional>
 #include <vector>
 
 namespace acestep::vst3::phase
@@ -119,5 +120,32 @@ inline Estimate estimateBeatPhase(const std::vector<Attack>& attacks,
     result.reliable = result.dispersionSeconds <= 0.045
                       && phases.size() * beatSeconds >= durationSeconds * 0.45;
     return result;
+}
+
+// The estimated onset phase describes attackTime - beatTime. To move an
+// early attack (+/- phase) onto the grid, shift the crop START by that same
+// amount. Return no suggestion if confidence, bounds, or accuracy is lacking.
+inline std::optional<double> suggestTotalCropShiftMs(const Estimate& estimate,
+                                                       double currentShiftMs,
+                                                       double originalStartSeconds,
+                                                       double originalEndSeconds,
+                                                       double sourceDurationSeconds,
+                                                       double maxShiftMs = 500.0)
+{
+    if (!estimate.reliable || !std::isfinite(estimate.offsetSeconds)
+        || !std::isfinite(currentShiftMs) || !std::isfinite(sourceDurationSeconds)
+        || originalStartSeconds < 0.0 || originalEndSeconds <= originalStartSeconds)
+        return std::nullopt;
+
+    const auto proposedMs = std::round(currentShiftMs + estimate.offsetSeconds * 1000.0);
+    if (std::abs(proposedMs) > maxShiftMs || std::abs(proposedMs - currentShiftMs) < 0.5)
+        return std::nullopt;
+
+    const auto newStart = originalStartSeconds + proposedMs / 1000.0;
+    const auto newEnd = originalEndSeconds + proposedMs / 1000.0;
+    if (newStart < 0.0 || newEnd > sourceDurationSeconds + 0.000001)
+        return std::nullopt;
+
+    return proposedMs;
 }
 } // namespace acestep::vst3::phase
